@@ -7,6 +7,7 @@ interface StarNodeProps {
   person: Person;
   x: number;
   y: number;
+  isSelf?: boolean;
   currentSeasonId: string | null;
   moietyNames?: [string, string];
   onClick: () => void;
@@ -24,6 +25,7 @@ export function StarNode({
   person,
   x,
   y,
+  isSelf,
   currentSeasonId,
   moietyNames,
   onClick,
@@ -49,6 +51,18 @@ export function StarNode({
       aria-label={`${person.displayName} — ${storyCount} ${storyCount === 1 ? 'story' : 'stories'}`}
       onKeyDown={(e) => e.key === 'Enter' && onClick()}
     >
+      {/* Self indicator — pulsing amber ring */}
+      {isSelf && (
+        <circle
+          cx={x}
+          cy={y}
+          r={glowRadius + 6}
+          fill="none"
+          stroke="rgba(212,164,84,0.45)"
+          strokeWidth={1}
+          className="animate-star-pulse"
+        />
+      )}
       {/* Outer glow */}
       <circle
         cx={x}

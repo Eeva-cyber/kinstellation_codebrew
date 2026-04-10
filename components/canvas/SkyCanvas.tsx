@@ -13,13 +13,13 @@ import {
 } from 'd3';
 import { useApp } from '@/lib/store/AppContext';
 import { getStarRadius, getSeasonById } from '@/lib/utils/season';
-import { GalaxyBackground } from '@/components/landing/GalaxyBackground';
-import { GalaxyShapes } from './GalaxyShapes';
+import { StarFieldBg } from './StarFieldBg';
 import { MilkyWay } from './MilkyWay';
 import { MoietyRegions } from './MoietyRegions';
 import { SeasonalAmbient } from './SeasonalAmbient';
 import { ConstellationLine } from './ConstellationLine';
 import { SolarSystemNode } from './SolarSystemNode';
+import { SeasonIndicator } from './SeasonIndicator';
 import { SeasonWheel } from './SeasonWheel';
 import { PersonPanel } from '@/components/panels/PersonPanel';
 import { StoryPanel } from '@/components/panels/StoryPanel';
@@ -35,6 +35,7 @@ type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | 'ti
 
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.06;
 
 interface NodeDatum extends SimulationNodeDatum {
   id: string;
@@ -46,7 +47,7 @@ interface LinkDatum extends SimulationLinkDatum<NodeDatum> {
 }
 
 export function SkyCanvas() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -54,19 +55,12 @@ export function SkyCanvas() {
   const [activePersonId, setActivePersonId] = useState<string | null>(null);
   const [personPanelFocus, setPersonPanelFocus] = useState<'identity' | 'stories' | 'connections' | undefined>(undefined);
   const [dragging, setDragging] = useState<string | null>(null);
-  const [activeStory, setActiveStory] = useState<{ story: Story; personName: string; personId: string } | null>(null);
+  const [activeStory, setActiveStory] = useState<{ story: Story; personName: string } | null>(null);
   const [impactScores, setImpactScores] = useState<Record<string, number>>({});
   const scoringInFlight = useRef<Set<string>>(new Set());
   const dragOffset = useRef({ x: 0, y: 0 });
   const simulationRef = useRef<ReturnType<typeof forceSimulation<NodeDatum>> | null>(null);
-  // Stable refs so the wheel handler (mounted once) always sees current values
-  const zoomRef = useRef(1);
-  const panRef = useRef({ x: 0, y: 0 });
-  const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
-  const activePersonIdRef = useRef<string | null>(null);
-  const animRef = useRef<number | null>(null);
-  const [filterSeasonIds, setFilterSeasonIds] = useState<string[]>([]);
-  const [activeMoiety, setActiveMoiety] = useState<string | null>(null);
+  const [filterSeasonId, setFilterSeasonId] = useState<string | null>(null);
 
   // Zoom & pan state
   const [zoom, setZoom] = useState(1);
@@ -75,6 +69,68 @@ export function SkyCanvas() {
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
+  const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
+  useEffect(() => {
+    const stored = localStorage.getItem("kinstellation_self_id");
+    if (stored) { setSelfPersonId(stored); return; }
+    const profile = localStorage.getItem("kinstellation_profile");
+    if (profile && state.persons.length > 0) {
+      try {
+        const { name } = JSON.parse(profile);
+        const match = state.persons.find(
+          (p) => p.displayName.trim().toLowerCase() === name?.trim().toLowerCase()
+        );
+        if (match) {
+          localStorage.setItem("kinstellation_self_id", match.id);
+          setSelfPersonId(match.id);
+        }
+      } catch { /* ignore */ }
+    }
+  }, [state.persons]);
+
+  // Ensure self person exists on canvas — runs after Supabase load completes
+  useEffect(() => {
+    if (!state.initialized) return;
+    const profile = localStorage.getItem('kinstellation_profile');
+    if (!profile) return;
+
+    let parsed: { name?: string; mob?: string; skinName?: string } = {};
+    try { parsed = JSON.parse(profile); } catch { return; }
+    if (!parsed.name) return;
+
+    const existingId = localStorage.getItem('kinstellation_self_id');
+
+    // Check if person already exists in state
+    if (existingId && state.persons.some((p) => p.id === existingId)) return;
+
+    // Try to recover by name match
+    const match = state.persons.find(
+      (p) => p.displayName.trim().toLowerCase() === parsed.name!.trim().toLowerCase()
+    );
+    if (match) {
+      localStorage.setItem('kinstellation_self_id', match.id);
+      setSelfPersonId(match.id);
+      return;
+    }
+
+    // Create the self person now (after Supabase data is loaded)
+    const selfId = crypto.randomUUID();
+    const selfPerson: Person = {
+      id: selfId,
+      displayName: parsed.name.trim(),
+      skinName: parsed.skinName ?? undefined,
+      countryLanguageGroup: parsed.mob ?? undefined,
+      regionSelectorValue: localStorage.getItem('kinstellation_region') ?? '',
+      isDeceased: false,
+      stories: [],
+      visibility: 'public',
+      lastUpdated: new Date().toISOString(),
+      position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    };
+    dispatch({ type: 'ADD_PERSON', payload: selfPerson });
+    localStorage.setItem('kinstellation_self_id', selfId);
+    setSelfPersonId(selfId);
+  }, [state.initialized, state.persons]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connection count per person (memoized)
   const connectionCounts = useMemo(() => {
@@ -104,97 +160,23 @@ export function SkyCanvas() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // Stable ref for dimensions (so wheel handler sees current size without re-mounting)
-  const dimensionsRef = useRef({ width: 0, height: 0 });
-  useEffect(() => { dimensionsRef.current = dimensions; }, [dimensions]);
-
-  // Keep stable refs in sync with state (so wheel handler never needs re-mounting)
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-  useEffect(() => { panRef.current = pan; }, [pan]);
-  useEffect(() => { nodePositionsRef.current = nodePositions; }, [nodePositions]);
-  useEffect(() => { activePersonIdRef.current = activePersonId; }, [activePersonId]);
-
-  // Wheel zoom/pan handler — mounted once; reads current values from refs
+  // Wheel zoom handler
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     function handleWheel(e: WheelEvent) {
-      // Let panel elements scroll natively
-      if ((e.target as Element).closest?.('.panel-scroll')) return;
       e.preventDefault();
-
-      // Input classification:
-      //  • Pinch (macOS trackpad): e.ctrlKey === true
-      //  • Two-finger scroll (trackpad): e.ctrlKey === false, deltaMode=0, |deltaY| < 50
-      //  • Mouse wheel: e.ctrlKey === false, deltaMode=1 OR |deltaY| >= 50
-      const isPinch = e.ctrlKey;
-      const isMouseWheel = !e.ctrlKey && (e.deltaMode === 1 || Math.abs(e.deltaY) >= 50);
-      const isTrackpadScroll = !e.ctrlKey && !isMouseWheel;
-
-      if (isTrackpadScroll) {
-        // Two-finger scroll → pan naturally
-        setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
-        return;
-      }
-
-      // Zoom (pinch or mouse wheel)
-      let rawDelta: number;
-      if (isPinch) {
-        rawDelta = e.deltaMode === 0 ? e.deltaY * 12 : e.deltaY * 150;
-      } else {
-        rawDelta = e.deltaMode === 0 ? e.deltaY : e.deltaY * 35;
-      }
-
-      // Regulated: capped at 18% per tick
-      const factor = Math.min(Math.abs(rawDelta) * 0.0014, 0.18) * (rawDelta > 0 ? -1 : 1);
-
-      const rect = el!.getBoundingClientRect();
-      const cursorX = e.clientX - rect.left;
-      const cursorY = e.clientY - rect.top;
-
-      const currentZoom = zoomRef.current;
-      const currentPan = panRef.current;
-
-      let pivotX = cursorX;
-      let pivotY = cursorY;
-
-      // Priority 1: if a person is selected, always zoom centered on their star
-      const activeId = activePersonIdRef.current;
-      const activePos = activeId ? nodePositionsRef.current[activeId] : null;
-
-      if (activePos) {
-        // Center-lock: keep active star at screen center during zoom
-        const { width, height } = dimensionsRef.current;
-        const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentZoom * (1 + factor)));
-        if (next !== currentZoom) {
-          setZoom(next);
-          setPan({ x: width / 2 - activePos.x * next, y: height / 2 - activePos.y * next });
-        }
-        return;
-      } else {
-        // Priority 2: snap to nearest star within 200 world-px of cursor
-        const worldX = (cursorX - currentPan.x) / currentZoom;
-        const worldY = (cursorY - currentPan.y) / currentZoom;
-        let minDist = 200 / currentZoom;
-
-        for (const pos of Object.values(nodePositionsRef.current)) {
-          const d = Math.hypot(pos.x - worldX, pos.y - worldY);
-          if (d < minDist) {
-            minDist = d;
-            pivotX = pos.x * currentZoom + currentPan.x;
-            pivotY = pos.y * currentZoom + currentPan.y;
-          }
-        }
-      }
-
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
       setZoom((prev) => {
-        const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * (1 + factor)));
-        if (next === prev) return prev;
+        const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + delta));
+        const rect = el!.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
         const scale = next / prev;
         setPan((p) => ({
-          x: pivotX - scale * (pivotX - p.x),
-          y: pivotY - scale * (pivotY - p.y),
+          x: cx - scale * (cx - p.x),
+          y: cy - scale * (cy - p.y),
         }));
         return next;
       });
@@ -202,8 +184,7 @@ export function SkyCanvas() {
 
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // refs are stable — no deps needed
+  }, []);
 
   // AI impact scoring — run for any unscored story
   useEffect(() => {
@@ -387,16 +368,11 @@ export function SkyCanvas() {
     setDragging(null);
   }, [dragging, panning]);
 
-  // Pan on left-click drag on empty canvas — only for SVG elements, never HTML panels
+  // Pan on left-click drag on empty canvas (nodes call stopPropagation, so this only fires on empty space)
   const handleCanvasMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Left-click (0) or middle-click (1) on empty area → pan
       if (e.button === 0 || e.button === 1) {
-        if (!(e.target instanceof SVGElement)) return;
-        // Cancel any in-flight centering animation so drag takes over immediately
-        if (animRef.current) {
-          cancelAnimationFrame(animRef.current);
-          animRef.current = null;
-        }
         e.preventDefault();
         setPanning(true);
         panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
@@ -405,47 +381,11 @@ export function SkyCanvas() {
     [pan],
   );
 
-  // Animate the canvas to center a person's star in the viewport
-  const centerOnPerson = useCallback((personId: string) => {
-    const pos = nodePositionsRef.current[personId];
-    if (!pos || !dimensions.width || !dimensions.height) return;
-
-    if (animRef.current) {
-      cancelAnimationFrame(animRef.current);
-      animRef.current = null;
-    }
-
-    const startZoom = zoomRef.current;
-    const startPan = { ...panRef.current };
-    const targetZoom = Math.max(startZoom, 1.5);
-    const targetPanX = dimensions.width / 2 - pos.x * targetZoom;
-    const targetPanY = dimensions.height / 2 - pos.y * targetZoom;
-    const startTime = performance.now();
-    const DURATION = 520;
-
-    function tick(now: number) {
-      const rawT = Math.min((now - startTime) / DURATION, 1);
-      const t = 1 - Math.pow(1 - rawT, 3); // ease-out cubic
-      setZoom(startZoom + (targetZoom - startZoom) * t);
-      setPan({
-        x: startPan.x + (targetPanX - startPan.x) * t,
-        y: startPan.y + (targetPanY - startPan.y) * t,
-      });
-      if (rawT < 1) {
-        animRef.current = requestAnimationFrame(tick);
-      } else {
-        animRef.current = null;
-      }
-    }
-    animRef.current = requestAnimationFrame(tick);
-  }, [dimensions]);
-
   const handleSunClick = useCallback((personId: string) => {
     setActivePersonId(personId);
     setPersonPanelFocus(undefined);
     setActivePanel('person');
-    centerOnPerson(personId);
-  }, [centerOnPerson]);
+  }, []);
 
   const handlePlanetClick = useCallback((personId: string, action: 'identity' | 'stories' | 'media') => {
     setActivePersonId(personId);
@@ -485,23 +425,9 @@ export function SkyCanvas() {
     p.stories.map((s) => ({ ...s, personName: p.displayName, personId: p.id })),
   );
 
-  function toggleSeasonFilter(id: string) {
-    setFilterSeasonIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-
   function isPersonDimmed(person: Person): boolean {
-    if (activeMoiety && person.moiety !== activeMoiety) return true;
-    if (filterSeasonIds.length === 0) return false;
-    return !person.stories.some((s) => filterSeasonIds.includes(s.seasonTag));
-  }
-
-  function isPersonBoosted(person: Person): boolean {
-    if (filterSeasonIds.length === 0 && !activeMoiety) return false;
-    if (activeMoiety && person.moiety !== activeMoiety) return false;
-    if (filterSeasonIds.length === 0) return activeMoiety === person.moiety;
-    return person.stories.some((s) => filterSeasonIds.includes(s.seasonTag));
+    if (!filterSeasonId) return false;
+    return !person.stories.some((s) => s.seasonTag === filterSeasonId);
   }
 
   // Zoom controls
@@ -512,7 +438,7 @@ export function SkyCanvas() {
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-screen overflow-hidden select-none ${panning ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className="relative w-full h-screen overflow-hidden select-none"
       onMouseMove={handleDragMove}
       onMouseUp={handleDragEnd}
       onMouseLeave={handleDragEnd}
@@ -521,28 +447,30 @@ export function SkyCanvas() {
       onTouchEnd={handleDragEnd}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Layer 1: Seasonal ambient background — color shifts with current season */}
+      {/* Deep space base — matches landing page */}
+      <div className="absolute inset-0" style={{
+        background: `
+          radial-gradient(ellipse 100% 80% at 50% 0%, #100508 0%, #04030A 50%),
+          radial-gradient(ellipse 60% 40% at 10% 60%, #0D0520 0%, transparent 60%),
+          radial-gradient(ellipse 60% 40% at 90% 40%, #100508 0%, transparent 60%),
+          #04030A
+        `,
+      }} />
+
+      {/* Nebula blobs */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `
+          radial-gradient(ellipse 40% 30% at 15% 70%, rgba(107,47,212,0.06) 0%, transparent 70%),
+          radial-gradient(ellipse 50% 35% at 85% 30%, rgba(212,164,84,0.05) 0%, transparent 70%),
+          radial-gradient(ellipse 40% 30% at 75% 85%, rgba(78,205,196,0.04) 0%, transparent 70%)
+        `,
+      }} />
+
+      {/* Layer 1: Seasonal ambient background */}
       <SeasonalAmbient />
 
-      {/* Layer 2: Rich star field — colored + twinkling + shooting stars */}
-      <div className="absolute inset-0" style={{ zIndex: 1 }}>
-        <GalaxyBackground />
-      </div>
-
-      {/* Layer 3: Distant galaxy shapes */}
-      <GalaxyShapes />
-
-      {/* Nebula color blobs — large soft glows like landing page */}
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 4 }}>
-        <div className="absolute inset-0" style={{
-          background: `
-            radial-gradient(ellipse 55% 45% at 15% 70%, rgba(107,47,212,0.08) 0%, transparent 70%),
-            radial-gradient(ellipse 40% 30% at 85% 15%, rgba(212,164,84,0.06) 0%, transparent 70%),
-            radial-gradient(ellipse 35% 25% at 80% 80%, rgba(180,40,80,0.05) 0%, transparent 70%),
-            radial-gradient(ellipse 25% 20% at 28% 22%, rgba(90,30,180,0.06) 0%, transparent 70%)
-          `
-        }} />
-      </div>
+      {/* Layer 2: Decorative static star field */}
+      <StarFieldBg />
 
       {/* Layer 3: Interactive SVG layer */}
       <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 10 }}>
@@ -569,7 +497,7 @@ export function SkyCanvas() {
         />
 
         {/* Zoom/Pan transform group — only interactive content */}
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`} style={{ willChange: 'transform' }}>
+        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
           {/* Story satellite stars — each story orbits its person star as a smaller star.
               Impact score (1–10) pulls high-impact stories closer to the person. */}
           {state.persons.map((person) => {
@@ -581,13 +509,10 @@ export function SkyCanvas() {
 
             return person.stories.map((story, i) => {
               const impact = impactScores[story.id] ?? null;
-              // High-impact stories orbit very close; low-impact orbit far out.
-              // Range: score 10 → +8px from star edge; score 1 → +8+63 = +71px (63px spread).
-              // This makes a 1-sentence story visibly far from the sun vs. a rich long story.
               const orbitRadius =
                 impact !== null
-                  ? personRadius + 8 + (10 - impact) * 7.0
-                  : personRadius + 43; // pending: mid-range placeholder
+                  ? personRadius + 8 + (10 - impact) * 2.6
+                  : personRadius + 22;
 
               const angle = (i / storyCount) * Math.PI * 2 - Math.PI / 2;
               const sx = pos.x + Math.cos(angle) * orbitRadius;
@@ -599,32 +524,24 @@ export function SkyCanvas() {
                 if (season) storyColor = season.colorPalette.accentColor;
               }
 
-              const glowR = impact !== null ? 6 + (impact / 10) * 5 : 7;
-              const bodyR = impact !== null ? 3 + (impact / 10) * 2 : 4;
-
-              // Per-story season dimming: matching stories shine bright, others fade
-              const seasonMatch = filterSeasonIds.length === 0 || filterSeasonIds.includes(story.seasonTag);
-              const effectiveOpacity = filterSeasonIds.length > 0
-                ? (seasonMatch ? Math.min(chainOpacity * 2.0, 1.0) : chainOpacity * 0.08)
-                : chainOpacity;
+              const glowR = impact !== null ? 4 + (impact / 10) * 4 : 5;
+              const bodyR = impact !== null ? 2 + (impact / 10) * 1.5 : 2.5;
 
               return (
                 <g
                   key={story.id}
                   className="cursor-pointer"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setActiveStory({ story, personName: person.displayName, personId: person.id }); }}
+                  onClick={(e) => { e.stopPropagation(); setActiveStory({ story, personName: person.displayName }); }}
                   role="button"
                   tabIndex={0}
                   aria-label={`Story: ${story.title}`}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setActiveStory({ story, personName: person.displayName, personId: person.id }); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setActiveStory({ story, personName: person.displayName }); }}
                 >
-                  {/* Larger transparent hit area for easier clicking */}
-                  <circle cx={sx} cy={sy} r={16} fill="transparent" />
-                  <line x1={pos.x} y1={pos.y} x2={sx} y2={sy} stroke="white" strokeOpacity={effectiveOpacity} strokeWidth={0.6} strokeDasharray="2 3.5" strokeLinecap="round" />
-                  <circle cx={sx} cy={sy} r={glowR} fill={storyColor} opacity={effectiveOpacity * 0.2} filter="url(#starGlow)" />
-                  <circle cx={sx} cy={sy} r={bodyR} fill={storyColor} opacity={Math.min(effectiveOpacity * 1.4, 1)} />
-                  <circle cx={sx} cy={sy} r={bodyR * 0.38} fill="white" opacity={Math.min(effectiveOpacity * 1.6, 1)} />
+                  <circle cx={sx} cy={sy} r={10} fill="transparent" />
+                  <line x1={pos.x} y1={pos.y} x2={sx} y2={sy} stroke="white" strokeOpacity={chainOpacity} strokeWidth={0.5} strokeDasharray="1.5 3" strokeLinecap="round" />
+                  <circle cx={sx} cy={sy} r={glowR} fill={storyColor} opacity={chainOpacity * 0.18} filter="url(#starGlow)" />
+                  <circle cx={sx} cy={sy} r={bodyR} fill={storyColor} opacity={Math.min(chainOpacity * 1.4, 1)} />
+                  <circle cx={sx} cy={sy} r={bodyR * 0.4} fill="white" opacity={Math.min(chainOpacity * 1.6, 1)} />
                 </g>
               );
             });
@@ -658,14 +575,13 @@ export function SkyCanvas() {
                 person={person}
                 x={pos.x}
                 y={pos.y}
+                isSelf={person.id === selfPersonId}
                 currentSeasonId={state.currentSeasonId}
                 moietyNames={moietyNames}
                 seasonalCalendar={state.seasonalCalendar}
                 connectionCount={connectionCounts[person.id] ?? 0}
                 zoom={zoom}
                 dimmed={isPersonDimmed(person)}
-                boosted={isPersonBoosted(person)}
-                filterSeasonIds={filterSeasonIds}
                 onSunClick={() => handleSunClick(person.id)}
                 onPlanetClick={(action) => handlePlanetClick(person.id, action)}
                 onDragStart={handleDragStart(person.id)}
@@ -675,32 +591,29 @@ export function SkyCanvas() {
         </g>
       </svg>
 
-      {/* Season wheel (bottom-left) — hidden when timeline panel is open */}
-      {activePanel !== 'timeline' && (
-        <SeasonWheel
-          activeSeasonFilters={filterSeasonIds}
-          onSeasonClick={toggleSeasonFilter}
-          onClearFilters={() => setFilterSeasonIds([])}
-        />
-      )}
+      {/* Season indicator */}
+      <SeasonIndicator />
 
-      {/* Moiety name HTML overlays — click to filter, hover for tooltip */}
+      {/* Season wheel (bottom-left) */}
+      <SeasonWheel
+        activeSeasonFilter={filterSeasonId}
+        onSeasonClick={setFilterSeasonId}
+      />
+
+      {/* Moiety name HTML overlays — positioned over the SVG moiety regions for hover tooltip support */}
       {moietyNames && dimensions.width > 0 && (
         <>
           <div
             className="absolute top-6 z-20 pointer-events-auto"
             style={{ left: `${dimensions.width * 0.25}px`, transform: 'translateX(-50%)' }}
           >
-            <WordTooltip term={moietyNames[0]} direction="down">
+            <WordTooltip
+              term={moietyNames[0]}
+              definition={state.kinshipTemplate?.description}
+            >
               <span
-                onClick={(e) => { e.stopPropagation(); setActiveMoiety((prev) => prev === moietyNames[0] ? null : moietyNames[0]); }}
-                className="cursor-pointer text-sm font-medium tracking-[0.18em] uppercase transition-all duration-300 select-none"
-                style={{
-                  color: activeMoiety === moietyNames[0] ? 'rgba(212,160,87,1)' : activeMoiety ? 'rgba(212,160,87,0.3)' : 'rgba(212,160,87,0.85)',
-                  textShadow: activeMoiety === moietyNames[0]
-                    ? '0 0 16px rgba(212,160,87,0.8), 0 0 36px rgba(212,160,87,0.4)'
-                    : '0 0 12px rgba(212,160,87,0.5), 0 0 28px rgba(212,160,87,0.25)',
-                }}
+                className="text-[11px] font-light tracking-[0.15em] uppercase"
+                style={{ color: 'rgba(212, 160, 87, 0.35)' }}
               >
                 {moietyNames[0]}
               </span>
@@ -710,16 +623,13 @@ export function SkyCanvas() {
             className="absolute top-6 z-20 pointer-events-auto"
             style={{ left: `${dimensions.width * 0.75}px`, transform: 'translateX(-50%)' }}
           >
-            <WordTooltip term={moietyNames[1]} direction="down">
+            <WordTooltip
+              term={moietyNames[1]}
+              definition={state.kinshipTemplate?.description}
+            >
               <span
-                onClick={(e) => { e.stopPropagation(); setActiveMoiety((prev) => prev === moietyNames[1] ? null : moietyNames[1]); }}
-                className="cursor-pointer text-sm font-medium tracking-[0.18em] uppercase transition-all duration-300 select-none"
-                style={{
-                  color: activeMoiety === moietyNames[1] ? 'rgba(140,170,230,1)' : activeMoiety ? 'rgba(140,170,230,0.3)' : 'rgba(140,170,230,0.85)',
-                  textShadow: activeMoiety === moietyNames[1]
-                    ? '0 0 16px rgba(140,170,230,0.8), 0 0 36px rgba(140,170,230,0.4)'
-                    : '0 0 12px rgba(140,170,230,0.5), 0 0 28px rgba(140,170,230,0.25)',
-                }}
+                className="text-[11px] font-light tracking-[0.15em] uppercase"
+                style={{ color: 'rgba(107, 127, 184, 0.35)' }}
               >
                 {moietyNames[1]}
               </span>
@@ -728,90 +638,83 @@ export function SkyCanvas() {
         </>
       )}
 
-      {/* Zoom controls — left edge, vertically centered. Fades in when hovering the zone. */}
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-[50] flex flex-col gap-2 pl-3 pr-5 py-6 group/zoom">
+      {/* Zoom controls (bottom-left, above season wheel) */}
+      <div className="absolute bottom-48 left-4 z-20 flex flex-col gap-1.5">
         <button
           onClick={zoomIn}
-          className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 opacity-0 group-hover/zoom:opacity-100 -translate-x-2 group-hover/zoom:translate-x-0"
-          style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(139,92,246,0.4)', boxShadow: '0 0 12px rgba(139,92,246,0.2)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(109,40,217,0.75)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(88,28,135,0.6)')}
+          className="w-9 h-9 rounded-lg bg-white/[0.08] border border-white/[0.1]
+            hover:bg-white/[0.15] transition-all flex items-center justify-center"
           aria-label="Zoom in"
         >
-          <span className="text-purple-100 text-2xl font-light leading-none">+</span>
+          <span className="text-white/70 text-lg font-light leading-none">+</span>
         </button>
         <button
           onClick={zoomReset}
-          className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 opacity-0 group-hover/zoom:opacity-100 -translate-x-2 group-hover/zoom:translate-x-0"
-          style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(139,92,246,0.4)', boxShadow: '0 0 12px rgba(139,92,246,0.2)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(109,40,217,0.75)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(88,28,135,0.6)')}
+          className="w-9 h-9 rounded-lg bg-white/[0.08] border border-white/[0.1]
+            hover:bg-white/[0.15] transition-all flex items-center justify-center"
           aria-label="Reset zoom"
         >
-          <span className="text-purple-200 text-[11px] font-semibold leading-none">{Math.round(zoom * 100)}%</span>
+          <span className="text-white/50 text-[10px] font-medium leading-none">{Math.round(zoom * 100)}%</span>
         </button>
         <button
           onClick={zoomOut}
-          className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 opacity-0 group-hover/zoom:opacity-100 -translate-x-2 group-hover/zoom:translate-x-0"
-          style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(139,92,246,0.4)', boxShadow: '0 0 12px rgba(139,92,246,0.2)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(109,40,217,0.75)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(88,28,135,0.6)')}
+          className="w-9 h-9 rounded-lg bg-white/[0.08] border border-white/[0.1]
+            hover:bg-white/[0.15] transition-all flex items-center justify-center"
           aria-label="Zoom out"
         >
-          <span className="text-purple-100 text-2xl font-light leading-none">&minus;</span>
+          <span className="text-white/70 text-lg font-light leading-none">&minus;</span>
         </button>
       </div>
 
       {/* Bottom toolbar */}
-      <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-3 items-end">
+      <div className="absolute bottom-4 right-4 z-20 flex gap-2">
         {/* Timeline button */}
-        <div className="flex items-center gap-3 group/tl">
-          <span className="text-xs text-white/0 group-hover/tl:text-white/50 transition-all duration-200 tracking-wide font-light">
-            Story timeline
-          </span>
-          <button
-            onClick={() => setActivePanel('timeline')}
-            className="w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg"
-            style={{
-              background: 'rgba(88,28,135,0.55)',
-              border: '1px solid rgba(139,92,246,0.35)',
-              boxShadow: '0 4px 24px rgba(88,28,135,0.3)',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(109,40,217,0.7)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(88,28,135,0.55)'; e.currentTarget.style.transform = 'scale(1)'; }}
-            aria-label="Timeline"
+        <button
+          onClick={() => setActivePanel('timeline')}
+          className="w-12 h-12 rounded-full
+            bg-white/[0.08] border border-white/[0.1] backdrop-blur-sm
+            hover:bg-white/[0.14] transition-all duration-200
+            flex items-center justify-center group"
+          aria-label="Timeline"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            className="text-white/60 group-hover:text-white/90 transition-colors"
           >
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="text-purple-200/80 group-hover:text-purple-100 transition-colors">
-              <line x1="4" y1="11" x2="18" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              <circle cx="6" cy="11" r="2" fill="currentColor" />
-              <circle cx="11" cy="11" r="2" fill="currentColor" />
-              <circle cx="16" cy="11" r="2" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
+            <line x1="3" y1="9" x2="15" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="5" cy="9" r="1.5" fill="currentColor" />
+            <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+            <circle cx="13" cy="9" r="1.5" fill="currentColor" />
+          </svg>
+        </button>
 
         {/* Add person FAB */}
-        <div className="flex items-center gap-3 group/add">
-          <span className="text-xs text-white/0 group-hover/add:text-white/50 transition-all duration-200 tracking-wide font-light">
-            Add a star
-          </span>
-          <button
-            onClick={handleAddPerson}
-            className="w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg"
-            style={{
-              background: 'rgba(88,28,135,0.55)',
-              border: '1px solid rgba(212,164,84,0.3)',
-              boxShadow: '0 4px 24px rgba(88,28,135,0.3)',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(109,40,217,0.7)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(88,28,135,0.55)'; e.currentTarget.style.transform = 'scale(1)'; }}
-            aria-label="Add person"
+        <button
+          onClick={handleAddPerson}
+          className="w-12 h-12 rounded-full
+            bg-white/[0.08] border border-white/[0.1] backdrop-blur-sm
+            hover:bg-white/[0.14] transition-all duration-200
+            flex items-center justify-center group"
+          aria-label="Add person"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            className="text-white/60 group-hover:text-white/90 transition-colors"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-amber-200/80 group-hover:text-amber-100 transition-colors">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
+            <path
+              d="M10 4v12M4 10h12"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Settings / change region */}
@@ -845,14 +748,7 @@ export function SkyCanvas() {
 
       {/* Panels */}
       {activePanel === 'addPerson' && (
-        <QuickAddModal
-          onClose={handleClosePanel}
-          onPersonAdded={(personId) => {
-            setActivePersonId(personId);
-            setActivePanel('person');
-            centerOnPerson(personId);
-          }}
-        />
+        <QuickAddModal onClose={handleClosePanel} />
       )}
       {activePanel === 'person' && activePerson && (
         <PersonPanel
@@ -884,10 +780,6 @@ export function SkyCanvas() {
           stories={allStories}
           onClose={handleClosePanel}
           onPersonClick={(personId) => handleSunClick(personId)}
-          onAddStoryForPerson={(personId) => {
-            setActivePersonId(personId);
-            setActivePanel('story');
-          }}
         />
       )}
       {activePanel === 'timeline' && (
@@ -901,7 +793,6 @@ export function SkyCanvas() {
       {activeStory && (
         <StoryPopup
           story={activeStory.story}
-          personId={activeStory.personId}
           personName={activeStory.personName}
           seasonName={
             state.seasonalCalendar && activeStory.story.seasonTag !== 'unsure'
@@ -910,9 +801,6 @@ export function SkyCanvas() {
           }
           impactScore={impactScores[activeStory.story.id]}
           onClose={() => setActiveStory(null)}
-          onStoryUpdated={(updated) =>
-            setActiveStory((prev) => prev ? { ...prev, story: updated } : null)
-          }
         />
       )}
     </div>
