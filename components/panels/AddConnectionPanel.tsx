@@ -66,12 +66,12 @@ export function AddConnectionPanel({ fromPerson, onClose }: AddConnectionPanelPr
   }
 
   return (
-    <div className="absolute top-0 right-0 h-full w-80 z-30 animate-slide-right">
-      <div className="h-full bg-[var(--panel-bg)] border-l border-[var(--panel-border)] backdrop-blur-xl overflow-y-auto">
-        <div className="p-5">
+    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
+      <div className="h-full bg-[var(--panel-bg)] border-l border-[var(--panel-border)] backdrop-blur-xl panel-scroll">
+        <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-sm font-medium text-white/70 tracking-wide">
+            <h2 className="text-base font-medium text-white/75 tracking-wide">
               Add connection
             </h2>
             <button

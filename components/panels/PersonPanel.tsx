@@ -114,17 +114,27 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
   }
 
   return (
-    <div className="absolute top-0 right-0 h-full w-80 z-30 animate-slide-right">
-      <div ref={scrollRef} className="h-full bg-[var(--panel-bg)] border-l border-[var(--panel-border)] backdrop-blur-xl overflow-y-auto">
-        <div className="p-5">
+    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
+      <div
+        ref={scrollRef}
+        className="h-full backdrop-blur-xl panel-scroll"
+        style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}
+      >
+        <div className="p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-white/70 tracking-wide">
-              {person.displayName}
-            </h2>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-base font-medium tracking-wide" style={{ color: 'rgba(212,164,84,0.9)' }}>
+                {person.displayName}
+              </h2>
+              {person.indigenousName && (
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(139,92,246,0.6)' }}>{person.indigenousName}</p>
+              )}
+            </div>
             <button
               onClick={onClose}
-              className="text-white/30 hover:text-white/60 transition-colors text-lg leading-none"
+              className="text-lg leading-none transition-colors"
+              style={{ color: 'rgba(255,255,255,0.3)' }}
               aria-label="Close"
             >
               &times;
@@ -133,7 +143,7 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
 
           {/* Deceased warning */}
           {isDeceased && (
-            <div className="mb-4 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-white/40">
+            <div className="mb-5 px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-white/45 leading-relaxed">
               Aboriginal and Torres Strait Islander peoples are advised that
               this profile may contain the name and image of a deceased person.
             </div>
@@ -224,9 +234,8 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
               <button
                 onClick={handleSave}
                 disabled={!displayName.trim()}
-                className="w-full py-2 rounded-lg bg-white/[0.08] border border-white/[0.1]
-                  text-white/70 text-sm hover:bg-white/[0.12] transition-all
-                  disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full py-2 rounded-lg text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}
               >
                 Save
               </button>
@@ -251,59 +260,62 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
               {person.stories.map((story) => (
                 <div
                   key={story.id}
-                  className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.04] text-xs"
+                  className="px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]"
                 >
-                  <span className="text-white/60">{story.title}</span>
-                  <span className="text-white/20 ml-2">{story.type}</span>
+                  <span className="text-sm text-white/65">{story.title}</span>
+                  <span className="text-xs text-white/25 ml-2 capitalize">{story.type}</span>
                 </div>
               ))}
 
               {/* Quick story inline form */}
               {showQuickStory ? (
-                <div className="mt-2 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-2">
+                <div className="mt-2 p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-3">
                   <input
                     type="text"
                     value={quickStoryTitle}
                     onChange={(e) => setQuickStoryTitle(e.target.value)}
                     placeholder="Story title"
                     autoFocus
-                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1.5 text-xs text-white/70 placeholder:text-white/15 focus:outline-none focus:border-white/[0.15]"
+                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15]"
                   />
                   <textarea
                     value={quickStoryContent}
                     onChange={(e) => setQuickStoryContent(e.target.value)}
+                    onMouseDown={(e) => e.stopPropagation()}
                     placeholder="Tell the story..."
-                    rows={3}
-                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1.5 text-xs text-white/70 placeholder:text-white/15 focus:outline-none focus:border-white/[0.15] resize-none"
+                    rows={4}
+                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] resize-none"
                   />
                   <SeasonPicker value={quickStorySeason} onChange={setQuickStorySeason} />
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowQuickStory(false)}
-                      className="flex-1 py-1.5 rounded text-xs text-white/30 border border-white/[0.04] hover:bg-white/[0.04] transition-all"
+                      className="flex-1 py-2 rounded-lg text-sm transition-all"
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.32)' }}
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleQuickStorySave}
                       disabled={!quickStoryTitle.trim() || !quickStoryContent.trim()}
-                      className="flex-1 py-1.5 rounded text-xs bg-white/[0.08] border border-white/[0.1] text-white/60 hover:bg-white/[0.12] transition-all disabled:opacity-30"
+                      className="flex-1 py-2 rounded-lg text-sm transition-all disabled:opacity-30"
+                      style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}
                     >
-                      Save
+                      Save story
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex gap-2 mt-1">
+                <div className="flex gap-2 mt-2">
                   <button
                     onClick={() => setShowQuickStory(true)}
-                    className="flex-1 text-xs text-white/30 hover:text-white/50 transition-colors py-1"
+                    className="flex-1 text-sm text-white/35 hover:text-white/55 transition-colors py-2 rounded-lg border border-white/[0.04] hover:bg-white/[0.03]"
                   >
                     + Quick story
                   </button>
                   <button
                     onClick={() => onAddStory(person.id)}
-                    className="flex-1 text-xs text-white/30 hover:text-white/50 transition-colors py-1"
+                    className="flex-1 text-sm text-white/35 hover:text-white/55 transition-colors py-2 rounded-lg border border-white/[0.04] hover:bg-white/[0.03]"
                   >
                     + Full story
                   </button>
@@ -397,19 +409,21 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mt-4 pt-4 border-t border-white/[0.06]" data-section={section}>
+    <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(88,28,135,0.25)' }} data-section={section}>
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between mb-2 group"
       >
-        <h3 className="text-xs text-white/40 uppercase tracking-wider group-hover:text-white/60 transition-colors">
-          {title} {count !== null && <span className="text-white/20">({count})</span>}
+        <h3 className="text-xs uppercase tracking-wider font-medium transition-colors"
+          style={{ color: open ? 'rgba(212,164,84,0.8)' : 'rgba(212,164,84,0.45)' }}>
+          {title} {count !== null && <span style={{ color: 'rgba(139,92,246,0.5)' }}>({count})</span>}
         </h3>
         <svg
           width="12"
           height="12"
           viewBox="0 0 12 12"
-          className={`text-white/20 group-hover:text-white/40 transition-all ${open ? 'rotate-180' : ''}`}
+          className={`transition-all ${open ? 'rotate-180' : ''}`}
+          style={{ color: 'rgba(139,92,246,0.4)' }}
         >
           <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
         </svg>
@@ -432,13 +446,13 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs text-white/30 mb-1">{label}</label>
+      <label className="block text-xs text-white/35 mb-1.5">{label}</label>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/15 focus:outline-none focus:border-white/[0.15]"
+        className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
       />
     </div>
   );

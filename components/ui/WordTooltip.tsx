@@ -84,23 +84,23 @@ const GLOSSARY: Record<string, string> = {
   Naigai:
     'Torres Strait transitional season between the monsoon and the trade winds. A time of change on the water.',
 
-  // Moiety names
+  // Moiety names — each has a distinct, meaningful description
   Dhuwa:
-    'One of two complementary moieties in Yolngu kinship. Dhuwa and Yirritja together encompass all of creation — every person, animal, plant, wind, and rain belongs to one moiety. Your moiety shapes your ceremony roles, marriage partners, and relationship to the natural world.',
+    'The moiety of fresh water, lightning, and the Djan\'kawu ancestral beings who walked across the land shaping it into form. Dhuwa people hold guardianship of specific sacred songs, ceremonies, and Country. In the night sky, Dhuwa is the dark space — the constellation of shadow that gives the stars their meaning.',
   Yirritja:
-    'One of two complementary moieties in Yolngu kinship. Dhuwa and Yirritja together encompass all of creation. Your moiety determines your ceremony responsibilities, who you can marry, and your relationship to the spiritual and natural world.',
+    'The moiety of salt water, fire, and the Barama ancestral beings who rose from the deep sea. Yirritja people carry the ceremonial knowledge that connects the living to the open horizon and the cycle of return. In the night sky, Yirritja is the brilliance — the stars themselves, burning across the Milky Way.',
   Burung:
-    'One of two moieties in the four-section kinship system. Together with the other moiety, Burung divides all people and creation into complementary halves that govern relationships and obligations.',
+    'The moiety of the east wind and the rising sun. Burung people carry the laws of renewal — they hold the ceremonies that welcome new seasons and new life. Their stars sit on the dawn side of the sky, first to catch the light.',
   Gamilaraay:
-    'One of two moieties in the four-section kinship system, also the name of the language and nation of central and northern New South Wales. Your moiety determines kinship obligations and ceremony roles.',
+    'The moiety of the deep earth and the cool water. Gamilaraay people hold knowledge of the land\'s hidden places — the waterholes, the roots, the seeds that wait for rain. Their stars are the steady ones, the anchors of the night sky.',
   'Sun side':
-    'One of two moieties in the eight-subsection desert kinship system. Sun side and Shade side together divide all people and creation into complementary halves, governing marriage rules, ceremony, and responsibilities.',
+    'The moiety of open sky, warmth, and the long journeys of the sun. Sun side people carry the laws of movement and visibility — ceremonies of gathering, trade, and the open plain. Their stars cross the widest arc of the night sky.',
   'Shade side':
-    'One of two moieties in the eight-subsection desert kinship system. Sun side and Shade side together divide all people and creation into complementary halves, governing marriage rules, ceremony, and responsibilities.',
+    'The moiety of shelter, coolness, and deep water. Shade side people hold the laws of rest and protection — ceremonies of healing, of guarding knowledge, of the hidden places in Country. Their stars cluster in the sheltered parts of the sky.',
   'Koey Buway (Land)':
-    'One of two complementary moiety groupings in Torres Strait Islander kinship, connected to the land and its stories. Together with the Sea moiety, it structures relationships, ceremony, and obligations across the islands.',
+    'The Land moiety of Torres Strait Islander kinship, bound to the soil, the gardens, and the ancestral stories of the island earth. Land moiety people carry ceremonies and knowledge tied to planting, building, and the roots that hold communities to place.',
   'Koey Buway (Sea)':
-    'One of two complementary moiety groupings in Torres Strait Islander kinship, connected to the sea and its stories. Together with the Land moiety, it structures relationships, ceremony, and obligations across the islands.',
+    'The Sea moiety of Torres Strait Islander kinship, bound to the currents, the tides, and the ancestral paths of the open water. Sea moiety people carry knowledge of navigation, fishing, and the dreaming lines that run beneath the waves — the invisible roads between islands.',
 
   // Celestial
   Tagai:
@@ -111,11 +111,13 @@ interface WordTooltipProps {
   term: string;
   /** Override the glossary — use this for dynamic terms like moiety names. */
   definition?: string;
+  /** Which direction the tooltip card appears. Defaults to 'up'. Use 'down' for labels near the top of the screen. */
+  direction?: 'up' | 'down';
   children: React.ReactNode;
   className?: string;
 }
 
-export function WordTooltip({ term, definition: definitionProp, children, className }: WordTooltipProps) {
+export function WordTooltip({ term, definition: definitionProp, direction = 'up', children, className }: WordTooltipProps) {
   const [visible, setVisible] = useState(false);
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const [mounted, setMounted] = useState(false);
@@ -143,8 +145,10 @@ export function WordTooltip({ term, definition: definitionProp, children, classN
             style={{
               zIndex: 99999,
               left: coords.x,
-              top: coords.y,
-              transform: 'translate(-50%, calc(-100% - 8px))',
+              top: direction === 'down' ? coords.y + 20 : coords.y,
+              transform: direction === 'down'
+                ? 'translate(-50%, 0)'
+                : 'translate(-50%, calc(-100% - 8px))',
             }}
           >
             <div

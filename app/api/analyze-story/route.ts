@@ -16,12 +16,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ impactScore: 5 }, { status: 200 });
   }
 
+  const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
   const prompt = `You are helping analyse Aboriginal and Torres Strait Islander oral history stories for cultural and emotional significance. Rate the impact of this story on a scale of 1–10.
 
-Consider: ceremonial significance, connection to Country, ancestral knowledge, community and cultural identity, language preservation, historical trauma (Stolen Generations, dispossession), intergenerational healing, Dreaming connections, and elder knowledge.
+Scoring criteria (all are important):
+- Ceremonial significance, connection to Country, Dreaming connections
+- Ancestral knowledge, elder knowledge, language preservation
+- Historical trauma (Stolen Generations, dispossession, mission life)
+- Community and cultural identity, intergenerational healing
+- DEPTH AND DETAIL: A very short story (under 30 words) should score 1–4 unless the brevity itself carries profound cultural weight. Longer, more detailed stories (over 100 words) with specific cultural knowledge, personal names, places, or events score higher. A one-line story is rarely more than a 3.
 
 Story title: ${title}
-Story content: ${content.slice(0, 600)}
+Story word count: ${wordCount} words
+Story content: ${content.slice(0, 1500)}
 
 Respond with ONLY valid JSON, no other text: {"score": <integer 1-10>, "reason": "<one sentence>"}`;
 

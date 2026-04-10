@@ -10,9 +10,9 @@ export function getSeasonById(calendar: SeasonalCalendar, id: string): Season | 
 }
 
 export function getStarRadius(storyCount: number): number {
-  const base = 4;
-  const perStory = 2.5;
-  const max = 18;
+  const base = 6;
+  const perStory = 3.2;
+  const max = 26;
   return Math.min(base + storyCount * perStory, max);
 }
 

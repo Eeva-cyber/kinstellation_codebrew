@@ -1,18 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/lib/store/AppContext';
 import type { Person } from '@/lib/types';
 
 interface QuickAddModalProps {
   onClose: () => void;
+  onPersonAdded?: (personId: string) => void;
 }
 
-export function QuickAddModal({ onClose }: QuickAddModalProps) {
+export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
   const { state, dispatch } = useApp();
   const [displayName, setDisplayName] = useState('');
   const moietyNames = state.kinshipTemplate?.moietyNames;
   const [moiety, setMoiety] = useState('');
+
+  // ESC key closes the modal
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   function handleAdd() {
     if (!displayName.trim()) return;
@@ -41,6 +51,7 @@ export function QuickAddModal({ onClose }: QuickAddModalProps) {
 
     dispatch({ type: 'ADD_PERSON', payload: newPerson });
     onClose();
+    onPersonAdded?.(newPerson.id);
   }
 
   return (
@@ -49,13 +60,27 @@ export function QuickAddModal({ onClose }: QuickAddModalProps) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className="relative bg-[#0d0d18]/95 border border-white/[0.08] rounded-2xl p-6 w-72 shadow-2xl animate-fade-in">
-        <h2 className="text-sm font-medium text-white/60 tracking-wide mb-5">
-          Add a new star
-        </h2>
+      <div
+        className="relative rounded-2xl p-6 w-72 shadow-2xl animate-fade-in"
+        style={{
+          background: 'rgba(8,4,22,0.98)',
+          border: '1px solid rgba(88,28,135,0.5)',
+          boxShadow: '0 0 40px rgba(88,28,135,0.3), 0 25px 50px rgba(0,0,0,0.7)',
+        }}
+      >
+        {/* Header */}
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-sm font-medium tracking-wide" style={{ color: 'rgba(212,164,84,0.9)' }}>
+            Add a new star
+          </h2>
+          <span className="text-[10px]" style={{ color: 'rgba(139,92,246,0.45)' }}>esc to close</span>
+        </div>
+        <p className="text-[11px] mb-5" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          Their star will appear and their profile will open.
+        </p>
 
         {/* Name field */}
         <div className="mb-4">
@@ -66,27 +91,37 @@ export function QuickAddModal({ onClose }: QuickAddModalProps) {
             placeholder="Name"
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5
-              text-sm text-white/80 placeholder:text-white/20
-              focus:outline-none focus:border-white/[0.2] transition-colors"
+            className="w-full rounded-lg px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none transition-colors"
+            style={{
+              background: 'rgba(88,28,135,0.14)',
+              border: '1px solid rgba(139,92,246,0.25)',
+              color: 'rgba(255,255,255,0.85)',
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(212,164,84,0.45)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(139,92,246,0.25)')}
           />
         </div>
 
         {/* Moiety toggle */}
         {moietyNames && (
           <div className="mb-5">
-            <label className="block text-xs text-white/25 mb-1.5">Moiety</label>
+            <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.55)' }}>Moiety</label>
             <div className="flex gap-2">
               {moietyNames.map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMoiety(moiety === m ? '' : m)}
-                  className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-all ${
-                    moiety === m
-                      ? 'border-white/20 bg-white/[0.08] text-white/80'
-                      : 'border-white/[0.04] bg-white/[0.02] text-white/35 hover:bg-white/[0.04]'
-                  }`}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs transition-all"
+                  style={moiety === m ? {
+                    background: 'rgba(88,28,135,0.55)',
+                    border: '1px solid rgba(212,164,84,0.4)',
+                    color: 'rgba(212,164,84,0.95)',
+                  } : {
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(139,92,246,0.15)',
+                    color: 'rgba(255,255,255,0.4)',
+                  }}
                 >
                   {m}
                 </button>
@@ -99,17 +134,24 @@ export function QuickAddModal({ onClose }: QuickAddModalProps) {
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 py-2 rounded-lg border border-white/[0.06] text-white/30 text-sm
-              hover:bg-white/[0.04] transition-all"
+            className="flex-1 py-2 rounded-lg text-sm transition-all"
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.07)',
+              color: 'rgba(255,255,255,0.32)',
+            }}
           >
             Cancel
           </button>
           <button
             onClick={handleAdd}
             disabled={!displayName.trim()}
-            className="flex-1 py-2 rounded-lg bg-white/[0.1] border border-white/[0.12]
-              text-white/70 text-sm hover:bg-white/[0.15] transition-all
-              disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              background: 'rgba(88,28,135,0.65)',
+              border: '1px solid rgba(212,164,84,0.35)',
+              color: 'rgba(212,164,84,0.95)',
+            }}
           >
             Add to sky
           </button>

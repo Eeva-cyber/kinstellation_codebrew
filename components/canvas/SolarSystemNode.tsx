@@ -14,6 +14,8 @@ interface SolarSystemNodeProps {
   connectionCount: number;
   zoom: number;
   dimmed?: boolean;
+  boosted?: boolean;
+  filterSeasonIds?: string[];
   onSunClick: () => void;
   onPlanetClick: (action: 'identity' | 'stories' | 'media') => void;
   onDragStart: (e: React.MouseEvent | React.TouchEvent) => void;
@@ -29,7 +31,7 @@ function getMoietyColor(moiety: string | undefined, moietyNames?: [string, strin
 // Orbit configuration — larger overall
 const ORBITS = {
   skinName: { radius: 35, planetRadius: 5, defaultColor: 'rgba(220, 180, 100, 0.85)', dimColor: 'rgba(255,255,255,0.18)' },
-  dob: { radius: 55, planetRadius: 5, defaultColor: 'rgba(100, 210, 210, 0.85)', dimColor: 'rgba(255,255,255,0.18)' },
+  dob: { radius: 55, planetRadius: 5, defaultColor: 'rgba(100, 210, 210, 0.85)', dimColor: 'rgba(100,210,210,0.35)' },
   stories: { radius: 75, planetRadius: 6, defaultColor: 'rgba(255,255,255,0.6)' },
   media: { radius: 95, planetRadius: 7, defaultColor: 'rgba(190, 140, 230, 0.85)', dimColor: 'rgba(255,255,255,0.18)' },
 } as const;
@@ -51,6 +53,8 @@ export function SolarSystemNode({
   connectionCount,
   zoom,
   dimmed = false,
+  boosted = false,
+  filterSeasonIds = [],
   onSunClick,
   onPlanetClick,
   onDragStart,
@@ -66,10 +70,12 @@ export function SolarSystemNode({
 
   // Brighter with more connections
   const connectionBrightness = Math.min(1, 0.7 + connectionCount * 0.08);
-  const finalOpacity = dimmed ? 0.15 : Math.min(
-    (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness,
-    1,
-  );
+  const baseOpacity = (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness;
+  const finalOpacity = dimmed
+    ? 0.1
+    : boosted
+    ? Math.min(baseOpacity * 1.6, 1)
+    : Math.min(baseOpacity, 1);
 
   const hasSkinName = !!person.skinName;
   const hasMedia = person.stories.some((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video');
@@ -105,39 +111,31 @@ export function SolarSystemNode({
         <OrbitRing cx={x} cy={y} r={ORBITS.media.radius} active={hasMedia} />
       )}
 
-      {/* Skin name planet — inner orbit */}
+      {/* Skin name planet — inner orbit — shines like a story star */}
       <g
         className="cursor-pointer"
         onClick={(e) => { e.stopPropagation(); onPlanetClick('identity'); }}
       >
         {(() => {
           const { px, py } = planetPosition(x, y, ORBITS.skinName.radius, -Math.PI / 4);
+          const color = hasSkinName ? ORBITS.skinName.defaultColor : ORBITS.skinName.dimColor;
+          const glowOpacity = hasSkinName ? 0.25 : 0.08;
+          const bodyOpacity = hasSkinName ? 0.92 : 0.35;
           return (
             <>
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.skinName.planetRadius}
-                fill={hasSkinName ? ORBITS.skinName.defaultColor : ORBITS.skinName.dimColor}
-              />
+              {/* Glow halo */}
+              <circle cx={px} cy={py} r={ORBITS.skinName.planetRadius + 5} fill={color} opacity={glowOpacity} filter="url(#starGlow)" />
+              {/* Body */}
+              <circle cx={px} cy={py} r={ORBITS.skinName.planetRadius} fill={color} opacity={bodyOpacity} />
+              {/* Bright core */}
+              <circle cx={px} cy={py} r={ORBITS.skinName.planetRadius * 0.38} fill="white" opacity={hasSkinName ? 0.88 : 0.2} />
               {hasSkinName && showLabels && (
-                <text
-                  x={px} y={py - 9}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.75)"
-                  fontSize={9}
-                  fontWeight={400}
-                >
+                <text x={px} y={py - 10} textAnchor="middle" fill="rgba(255,255,255,0.75)" fontSize={9} fontWeight={400}>
                   {person.skinName}
                 </text>
               )}
               {!hasSkinName && showLabels && (
-                <text
-                  x={px} y={py - 9}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.25)"
-                  fontSize={8}
-                  fontWeight={300}
-                >
+                <text x={px} y={py - 10} textAnchor="middle" fill="rgba(255,255,255,0.25)" fontSize={8} fontWeight={300}>
                   skin
                 </text>
               )}
@@ -146,29 +144,25 @@ export function SolarSystemNode({
         })()}
       </g>
 
-      {/* DOB planet — second orbit */}
+      {/* Country/birth planet — second orbit — shines like a story star */}
       <g
         className="cursor-pointer"
         onClick={(e) => { e.stopPropagation(); onPlanetClick('identity'); }}
       >
         {(() => {
           const { px, py } = planetPosition(x, y, ORBITS.dob.radius, Math.PI / 3);
+          const color = ORBITS.dob.defaultColor;
           return (
             <>
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.dob.planetRadius}
-                fill={ORBITS.dob.dimColor}
-              />
+              {/* Glow halo */}
+              <circle cx={px} cy={py} r={ORBITS.dob.planetRadius + 5} fill={color} opacity={0.2} filter="url(#starGlow)" />
+              {/* Body */}
+              <circle cx={px} cy={py} r={ORBITS.dob.planetRadius} fill={color} opacity={0.75} />
+              {/* Bright core */}
+              <circle cx={px} cy={py} r={ORBITS.dob.planetRadius * 0.38} fill="white" opacity={0.7} />
               {showLabels && (
-                <text
-                  x={px} y={py - 9}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.25)"
-                  fontSize={8}
-                  fontWeight={300}
-                >
-                  birth
+                <text x={px} y={py - 10} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8} fontWeight={300}>
+                  country
                 </text>
               )}
             </>
@@ -187,19 +181,17 @@ export function SolarSystemNode({
               className="cursor-pointer"
               onClick={(e) => { e.stopPropagation(); onPlanetClick('stories'); }}
             >
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.stories.planetRadius}
-                fill={getStoryColor(story.seasonTag)}
-                opacity={0.9}
-              />
-              {/* Glow */}
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.stories.planetRadius + 3}
-                fill={getStoryColor(story.seasonTag)}
-                opacity={0.15}
-              />
+              {(() => {
+                const storyMatch = filterSeasonIds.length === 0 || filterSeasonIds.includes(story.seasonTag);
+                const planetOpacity = filterSeasonIds.length > 0 ? (storyMatch ? 1.0 : 0.1) : 0.9;
+                const glowOpacity = filterSeasonIds.length > 0 ? (storyMatch ? 0.3 : 0.05) : 0.15;
+                return (
+                  <>
+                    <circle cx={px} cy={py} r={ORBITS.stories.planetRadius} fill={getStoryColor(story.seasonTag)} opacity={planetOpacity} />
+                    <circle cx={px} cy={py} r={ORBITS.stories.planetRadius + 3} fill={getStoryColor(story.seasonTag)} opacity={glowOpacity} />
+                  </>
+                );
+              })()}
               {showLabels && (
                 <text
                   x={px} y={py - 10}
@@ -302,12 +294,12 @@ export function SolarSystemNode({
         aria-label={`${person.displayName} — ${storyCount} ${storyCount === 1 ? 'story' : 'stories'}, ${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`}
         onKeyDown={(e) => e.key === 'Enter' && onSunClick()}
       >
-        {/* Sun glow halo */}
+        {/* Sun glow halo — scales with story count */}
         <circle
           cx={x} cy={y}
-          r={baseRadius + 5}
+          r={baseRadius + 5 + Math.min(storyCount * 2.5, 16)}
           fill={starColor}
-          opacity={0.2}
+          opacity={0.12 + Math.min(storyCount * 0.04, 0.32)}
           filter="url(#starGlow)"
         />
         {/* Main sun */}
@@ -348,14 +340,15 @@ export function SolarSystemNode({
         />
       )}
 
-      {/* Name label — always visible, brighter */}
+      {/* Name label — directly below the sun */}
       <text
         x={x}
-        y={y + ORBITS.media.radius + 18}
+        y={y + baseRadius + 14}
         textAnchor="middle"
-        fill="rgba(255, 255, 255, 0.85)"
+        fill="rgba(255, 255, 255, 0.88)"
         fontSize={12}
         fontWeight={400}
+        style={{ pointerEvents: 'none' }}
       >
         {person.displayName}
       </text>

@@ -55,18 +55,29 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
     onClose();
   }
 
+  const INPUT_CLS = "w-full rounded-lg px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none transition-colors";
+  const INPUT_STYLE = { background: 'rgba(88,28,135,0.14)', border: '1px solid rgba(139,92,246,0.2)', color: 'rgba(255,255,255,0.82)' };
+  const LABEL_STYLE = { color: 'rgba(212,164,84,0.65)' };
+
   return (
-    <div className="absolute top-0 right-0 h-full w-80 z-30 animate-slide-right">
-      <div className="h-full bg-[var(--panel-bg)] border-l border-[var(--panel-border)] backdrop-blur-xl overflow-y-auto">
-        <div className="p-5">
+    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
+      <div
+        className="h-full backdrop-blur-xl panel-scroll"
+        style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}
+      >
+        <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-sm font-medium text-white/70 tracking-wide">
-              Add story for {person.displayName}
-            </h2>
+            <div>
+              <h2 className="text-base font-medium tracking-wide" style={{ color: 'rgba(212,164,84,0.9)' }}>
+                New story
+              </h2>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(139,92,246,0.6)' }}>for {person.displayName}</p>
+            </div>
             <button
               onClick={onClose}
-              className="text-white/30 hover:text-white/60 transition-colors text-lg leading-none"
+              className="text-lg leading-none transition-colors"
+              style={{ color: 'rgba(255,255,255,0.3)' }}
               aria-label="Close"
             >
               &times;
@@ -76,34 +87,36 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
           <div className="space-y-4">
             {/* Title */}
             <div>
-              <label className="block text-xs text-white/30 mb-1">Story title</label>
+              <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Story title</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Give this story a name"
-                className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/15 focus:outline-none focus:border-white/[0.15]"
+                className={INPUT_CLS}
+                style={INPUT_STYLE}
               />
             </div>
 
             {/* Type selector */}
             <div>
-              <label className="block text-xs text-white/30 mb-1">Type</label>
+              <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Type</label>
               <div className="flex gap-2">
                 {(['text', 'photo'] as StoryType[]).map((t) => (
                   <button
                     key={t}
                     type="button"
-                    onClick={() => {
-                      setStoryType(t);
-                      setContent('');
-                      setPhotoPreview(null);
+                    onClick={() => { setStoryType(t); setContent(''); setPhotoPreview(null); }}
+                    className="flex-1 px-3 py-2 rounded-lg text-xs capitalize transition-all"
+                    style={storyType === t ? {
+                      background: 'rgba(88,28,135,0.55)',
+                      border: '1px solid rgba(212,164,84,0.35)',
+                      color: 'rgba(212,164,84,0.9)',
+                    } : {
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(139,92,246,0.15)',
+                      color: 'rgba(255,255,255,0.38)',
                     }}
-                    className={`flex-1 px-3 py-2 rounded-lg border text-xs capitalize transition-all ${
-                      storyType === t
-                        ? 'border-white/20 bg-white/[0.08] text-white/80'
-                        : 'border-white/[0.04] bg-white/[0.02] text-white/40 hover:bg-white/[0.04]'
-                    }`}
                   >
                     {t}
                   </button>
@@ -114,30 +127,29 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
             {/* Content */}
             {storyType === 'text' ? (
               <div>
-                <label className="block text-xs text-white/30 mb-1">Story</label>
+                <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Story</label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
+                  onMouseDown={(e) => e.stopPropagation()}
                   placeholder="Tell the story..."
                   rows={6}
-                  className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/15 focus:outline-none focus:border-white/[0.15] resize-none"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none resize-none"
+                  style={INPUT_STYLE}
                 />
               </div>
             ) : (
               <div>
-                <label className="block text-xs text-white/30 mb-1">Photo</label>
+                <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Photo</label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handlePhotoUpload}
-                  className="w-full text-xs text-white/40 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-white/[0.06] file:bg-white/[0.04] file:text-white/50 file:text-xs file:cursor-pointer"
+                  className="w-full text-xs text-white/40 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:cursor-pointer"
+                  style={{ '--file-bg': 'rgba(88,28,135,0.3)' } as React.CSSProperties}
                 />
                 {photoPreview && (
-                  <img
-                    src={photoPreview}
-                    alt="Preview"
-                    className="mt-2 rounded-lg max-h-32 object-cover w-full"
-                  />
+                  <img src={photoPreview} alt="Preview" className="mt-2 rounded-lg max-h-32 object-cover w-full" />
                 )}
               </div>
             )}
@@ -147,7 +159,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
 
             {/* Seasonal context */}
             <div>
-              <label className="block text-xs text-white/30 mb-1">
+              <label className="block text-xs mb-1.5" style={LABEL_STYLE}>
                 What was happening on Country? (optional)
               </label>
               <input
@@ -155,17 +167,19 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
                 value={seasonalContext}
                 onChange={(e) => setSeasonalContext(e.target.value)}
                 placeholder="e.g. the wattle was flowering, emus were sitting on eggs"
-                className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/15 focus:outline-none focus:border-white/[0.15]"
+                className={INPUT_CLS}
+                style={INPUT_STYLE}
               />
             </div>
 
             {/* Visibility */}
             <div>
-              <label className="block text-xs text-white/30 mb-1">Who can see this?</label>
+              <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Who can see this?</label>
               <select
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value as Visibility)}
-                className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none focus:border-white/[0.15]"
+                className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                style={INPUT_STYLE}
               >
                 <option value="public">Public</option>
                 <option value="family">Family only</option>
@@ -178,9 +192,12 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
             <button
               onClick={handleSave}
               disabled={!title.trim() || (storyType === 'text' && !content.trim()) || (storyType === 'photo' && !content)}
-              className="w-full py-2.5 rounded-lg bg-white/[0.08] border border-white/[0.1]
-                text-white/70 text-sm hover:bg-white/[0.12] transition-all
-                disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-full py-3 rounded-xl text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{
+                background: 'rgba(88,28,135,0.65)',
+                border: '1px solid rgba(212,164,84,0.35)',
+                color: 'rgba(212,164,84,0.95)',
+              }}
             >
               Save story
             </button>
