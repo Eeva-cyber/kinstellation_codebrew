@@ -94,22 +94,28 @@ export function SolarSystemNode({
 
   const storyAngles = storyPlanetAngles(storyCount);
 
+  const selfColor = 'rgba(212, 164, 84, 1)';
+  const sunColor = isSelf ? selfColor : starColor;
+  const sunRadius = isSelf ? Math.max(baseRadius + 5, 15) : baseRadius;
+
   return (
     <g
       opacity={finalOpacity}
       className="transition-opacity duration-300"
     >
-      {/* Self indicator — pulsing amber ring */}
+      {/* Self node — layered golden glow */}
       {isSelf && (
-        <circle
-          cx={x}
-          cy={y}
-          r={baseRadius + 6}
-          fill="none"
-          stroke="rgba(212,164,84,0.45)"
-          strokeWidth={1}
-          className="animate-star-pulse"
-        />
+        <>
+          {/* Soft outer halo */}
+          <circle cx={x} cy={y} r={sunRadius + 28} fill="rgba(212,164,84,0.04)" />
+          <circle cx={x} cy={y} r={sunRadius + 18} fill="rgba(212,164,84,0.08)" />
+          {/* Static amber ring */}
+          <circle cx={x} cy={y} r={sunRadius + 10} fill="none" stroke="rgba(212,164,84,0.25)" strokeWidth={1} />
+          {/* Pulsing outer ring */}
+          <circle cx={x} cy={y} r={sunRadius + 16} fill="none" stroke="rgba(212,164,84,0.15)" strokeWidth={1} className="animate-star-pulse" />
+          {/* Pulsing inner ring */}
+          <circle cx={x} cy={y} r={sunRadius + 6} fill="none" stroke="rgba(212,164,84,0.55)" strokeWidth={1.5} className="animate-star-pulse" />
+        </>
       )}
 
       {/* Orbit rings */}
@@ -320,21 +326,21 @@ export function SolarSystemNode({
         {/* Sun glow halo */}
         <circle
           cx={x} cy={y}
-          r={baseRadius + 5}
-          fill={starColor}
-          opacity={0.2}
+          r={sunRadius + 5}
+          fill={sunColor}
+          opacity={isSelf ? 0.35 : 0.2}
           filter="url(#starGlow)"
         />
         {/* Main sun */}
         <circle
           cx={x} cy={y}
-          r={baseRadius}
-          fill={starColor}
+          r={sunRadius}
+          fill={sunColor}
         />
         {/* Inner bright core */}
         <circle
           cx={x} cy={y}
-          r={baseRadius * 0.4}
+          r={sunRadius * 0.4}
           fill="white"
           opacity={0.85}
         />
@@ -342,7 +348,7 @@ export function SolarSystemNode({
         {person.isDeceased && (
           <circle
             cx={x} cy={y}
-            r={baseRadius + 7}
+            r={sunRadius + 7}
             fill="none"
             stroke="rgba(255,255,255,0.1)"
             strokeWidth={0.8}
@@ -354,26 +360,53 @@ export function SolarSystemNode({
       {isSeasonRelevant && !dimmed && (
         <circle
           cx={x} cy={y}
-          r={baseRadius + 8}
+          r={sunRadius + 8}
           fill="none"
-          stroke={starColor}
+          stroke={sunColor}
           strokeWidth={0.8}
           opacity={0.4}
           className="animate-star-pulse"
         />
       )}
 
-      {/* Name label — always visible, brighter */}
-      <text
-        x={x}
-        y={y + ORBITS.media.radius + 18}
-        textAnchor="middle"
-        fill="rgba(255, 255, 255, 0.85)"
-        fontSize={12}
-        fontWeight={400}
-      >
-        {person.displayName}
-      </text>
+      {/* Name label */}
+      {isSelf ? (
+        <>
+          <text
+            x={x}
+            y={y + ORBITS.media.radius + 14}
+            textAnchor="middle"
+            fill="rgba(212,164,84,0.95)"
+            fontSize={13}
+            fontWeight={500}
+            letterSpacing="0.08em"
+          >
+            {person.displayName}
+          </text>
+          <text
+            x={x}
+            y={y + ORBITS.media.radius + 28}
+            textAnchor="middle"
+            fill="rgba(212,164,84,0.35)"
+            fontSize={9}
+            fontWeight={300}
+            letterSpacing="0.18em"
+          >
+            YOUR STAR
+          </text>
+        </>
+      ) : (
+        <text
+          x={x}
+          y={y + ORBITS.media.radius + 18}
+          textAnchor="middle"
+          fill="rgba(255, 255, 255, 0.85)"
+          fontSize={12}
+          fontWeight={400}
+        >
+          {person.displayName}
+        </text>
+      )}
 
       {/* Connection count badge (when zoomed in and has connections) */}
       {showLabels && connectionCount > 0 && (

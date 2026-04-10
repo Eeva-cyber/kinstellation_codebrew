@@ -71,8 +71,23 @@ export function SkyCanvas() {
   const moietyNames = state.kinshipTemplate?.moietyNames;
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   useEffect(() => {
-    setSelfPersonId(localStorage.getItem('kinstellation_self_id'));
-  }, []);
+    const stored = localStorage.getItem("kinstellation_self_id");
+    if (stored) { setSelfPersonId(stored); return; }
+    const profile = localStorage.getItem("kinstellation_profile");
+    if (profile && state.persons.length > 0) {
+      try {
+        const { name } = JSON.parse(profile);
+        const match = state.persons.find(
+          (p) => p.displayName.trim().toLowerCase() === name?.trim().toLowerCase()
+        );
+        if (match) {
+          localStorage.setItem("kinstellation_self_id", match.id);
+          setSelfPersonId(match.id);
+        }
+      } catch { /* ignore */ }
+    }
+  }, [state.persons]);
+
 
   // Connection count per person (memoized)
   const connectionCounts = useMemo(() => {
@@ -389,6 +404,25 @@ export function SkyCanvas() {
       onTouchEnd={handleDragEnd}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {/* Deep space base — matches landing page */}
+      <div className="absolute inset-0" style={{
+        background: `
+          radial-gradient(ellipse 100% 80% at 50% 0%, #100508 0%, #04030A 50%),
+          radial-gradient(ellipse 60% 40% at 10% 60%, #0D0520 0%, transparent 60%),
+          radial-gradient(ellipse 60% 40% at 90% 40%, #100508 0%, transparent 60%),
+          #04030A
+        `,
+      }} />
+
+      {/* Nebula blobs */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `
+          radial-gradient(ellipse 40% 30% at 15% 70%, rgba(107,47,212,0.06) 0%, transparent 70%),
+          radial-gradient(ellipse 50% 35% at 85% 30%, rgba(212,164,84,0.05) 0%, transparent 70%),
+          radial-gradient(ellipse 40% 30% at 75% 85%, rgba(78,205,196,0.04) 0%, transparent 70%)
+        `,
+      }} />
+
       {/* Layer 1: Seasonal ambient background */}
       <SeasonalAmbient />
 
