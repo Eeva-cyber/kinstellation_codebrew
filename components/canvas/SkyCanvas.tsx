@@ -48,6 +48,10 @@ export function SkyCanvas() {
   const simulationRef = useRef<ReturnType<typeof forceSimulation<NodeDatum>> | null>(null);
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
+  const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
+  useEffect(() => {
+    setSelfPersonId(localStorage.getItem('kinstellation_self_id'));
+  }, []);
 
   // Measure container
   useEffect(() => {
@@ -293,6 +297,7 @@ export function SkyCanvas() {
               person={person}
               x={pos.x}
               y={pos.y}
+              isSelf={person.id === selfPersonId}
               currentSeasonId={state.currentSeasonId}
               moietyNames={moietyNames}
               onClick={() => handleStarClick(person.id)}
