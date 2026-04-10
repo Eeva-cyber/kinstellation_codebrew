@@ -31,10 +31,12 @@ export interface Story {
   recordedBy: string;
   recordedDate: string;
   seasonTag: string; // season id or 'unsure'
+  year?: number; // optional year for chronological ordering
   seasonalContext?: string;
   placeConnection?: string;
   visibility: Visibility;
   linkedPersonIds: string[];
+  impactScore?: number; // 1–10, scored by AI; higher = draws closer to person star
 }
 
 export interface Person {

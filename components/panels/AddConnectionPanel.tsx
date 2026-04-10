@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useApp } from '@/lib/store/AppContext';
 import type { Person, RelationshipType, Relationship } from '@/lib/types';
+import { WordTooltip } from '@/components/ui/WordTooltip';
 
 interface AddConnectionPanelProps {
   fromPerson: Person;
@@ -121,7 +122,7 @@ export function AddConnectionPanel({ fromPerson, onClose }: AddConnectionPanelPr
                 {RELATIONSHIP_GROUPS.map((group) => (
                   <div key={group.label}>
                     <span className="block text-[10px] text-white/20 uppercase tracking-wider mb-1">
-                      {group.label}
+                      <WordTooltip term={group.label}>{group.label}</WordTooltip>
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {group.types.map((t) => (
@@ -135,7 +136,7 @@ export function AddConnectionPanel({ fromPerson, onClose }: AddConnectionPanelPr
                               : 'border-white/[0.04] bg-white/[0.02] text-white/35 hover:bg-white/[0.04]'
                           }`}
                         >
-                          {t.label}
+                          <WordTooltip term={t.label}>{t.label}</WordTooltip>
                         </button>
                       ))}
                     </div>
