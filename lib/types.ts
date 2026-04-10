@@ -105,6 +105,9 @@ export interface KinshipTemplate {
 export interface Region {
   id: string;
   displayName: string;
+  alternateNames?: string[]; // other spellings or clan names used in search
+  stateTerritory: string;    // e.g. 'Western Australia', 'Northern Territory'
+  countryDescription: string; // brief description of traditional Country
   description: string;
   calendarId: string;
   kinshipTemplateType: KinshipTemplateType;
