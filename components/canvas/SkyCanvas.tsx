@@ -12,6 +12,7 @@ import {
   type SimulationLinkDatum,
 } from 'd3';
 import { useApp } from '@/lib/store/AppContext';
+import { getStarRadius, getSeasonById } from '@/lib/utils/season';
 import { StarFieldBg } from './StarFieldBg';
 import { MilkyWay } from './MilkyWay';
 import { MoietyRegions } from './MoietyRegions';
@@ -26,7 +27,9 @@ import { AddConnectionPanel } from '@/components/panels/AddConnectionPanel';
 import { StoriesRiverPanel } from '@/components/panels/StoriesRiverPanel';
 import { QuickAddModal } from '@/components/panels/QuickAddModal';
 import { TimelinePanel } from '@/components/panels/TimelinePanel';
-import type { Person } from '@/lib/types';
+import { StoryPopup } from '@/components/ui/StoryPopup';
+import { WordTooltip } from '@/components/ui/WordTooltip';
+import type { Person, Story } from '@/lib/types';
 
 type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | 'timeline' | null;
 
@@ -52,6 +55,9 @@ export function SkyCanvas() {
   const [activePersonId, setActivePersonId] = useState<string | null>(null);
   const [personPanelFocus, setPersonPanelFocus] = useState<'identity' | 'stories' | 'connections' | undefined>(undefined);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [activeStory, setActiveStory] = useState<{ story: Story; personName: string } | null>(null);
+  const [impactScores, setImpactScores] = useState<Record<string, number>>({});
+  const scoringInFlight = useRef<Set<string>>(new Set());
   const dragOffset = useRef({ x: 0, y: 0 });
   const simulationRef = useRef<ReturnType<typeof forceSimulation<NodeDatum>> | null>(null);
   const [filterSeasonId, setFilterSeasonId] = useState<string | null>(null);
@@ -63,6 +69,68 @@ export function SkyCanvas() {
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
+  const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
+  useEffect(() => {
+    const stored = localStorage.getItem("kinstellation_self_id");
+    if (stored) { setSelfPersonId(stored); return; }
+    const profile = localStorage.getItem("kinstellation_profile");
+    if (profile && state.persons.length > 0) {
+      try {
+        const { name } = JSON.parse(profile);
+        const match = state.persons.find(
+          (p) => p.displayName.trim().toLowerCase() === name?.trim().toLowerCase()
+        );
+        if (match) {
+          localStorage.setItem("kinstellation_self_id", match.id);
+          setSelfPersonId(match.id);
+        }
+      } catch { /* ignore */ }
+    }
+  }, [state.persons]);
+
+  // Ensure self person exists on canvas — runs after Supabase load completes
+  useEffect(() => {
+    if (!state.initialized) return;
+    const profile = localStorage.getItem('kinstellation_profile');
+    if (!profile) return;
+
+    let parsed: { name?: string; mob?: string; skinName?: string } = {};
+    try { parsed = JSON.parse(profile); } catch { return; }
+    if (!parsed.name) return;
+
+    const existingId = localStorage.getItem('kinstellation_self_id');
+
+    // Check if person already exists in state
+    if (existingId && state.persons.some((p) => p.id === existingId)) return;
+
+    // Try to recover by name match
+    const match = state.persons.find(
+      (p) => p.displayName.trim().toLowerCase() === parsed.name!.trim().toLowerCase()
+    );
+    if (match) {
+      localStorage.setItem('kinstellation_self_id', match.id);
+      setSelfPersonId(match.id);
+      return;
+    }
+
+    // Create the self person now (after Supabase data is loaded)
+    const selfId = crypto.randomUUID();
+    const selfPerson: Person = {
+      id: selfId,
+      displayName: parsed.name.trim(),
+      skinName: parsed.skinName ?? undefined,
+      countryLanguageGroup: parsed.mob ?? undefined,
+      regionSelectorValue: localStorage.getItem('kinstellation_region') ?? '',
+      isDeceased: false,
+      stories: [],
+      visibility: 'public',
+      lastUpdated: new Date().toISOString(),
+      position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    };
+    dispatch({ type: 'ADD_PERSON', payload: selfPerson });
+    localStorage.setItem('kinstellation_self_id', selfId);
+    setSelfPersonId(selfId);
+  }, [state.initialized, state.persons]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connection count per person (memoized)
   const connectionCounts = useMemo(() => {
@@ -102,7 +170,6 @@ export function SkyCanvas() {
       const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
       setZoom((prev) => {
         const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + delta));
-        // Zoom toward cursor position
         const rect = el!.getBoundingClientRect();
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;
@@ -118,6 +185,38 @@ export function SkyCanvas() {
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
   }, []);
+
+  // AI impact scoring — run for any unscored story
+  useEffect(() => {
+    for (const person of state.persons) {
+      for (const story of person.stories) {
+        if (impactScores[story.id] !== undefined) continue;
+        if (scoringInFlight.current.has(story.id)) continue;
+        if (story.type === 'photo') {
+          setImpactScores((prev) => ({ ...prev, [story.id]: 5 }));
+          continue;
+        }
+        scoringInFlight.current.add(story.id);
+        fetch('/api/analyze-story', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: story.title, content: story.content }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            const score = Math.max(1, Math.min(10, Number(data.impactScore) || 5));
+            setImpactScores((prev) => ({ ...prev, [story.id]: score }));
+          })
+          .catch(() => {
+            setImpactScores((prev) => ({ ...prev, [story.id]: 5 }));
+          })
+          .finally(() => {
+            scoringInFlight.current.delete(story.id);
+          });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.persons]);
 
   // D3 force simulation
   useEffect(() => {
@@ -348,6 +447,25 @@ export function SkyCanvas() {
       onTouchEnd={handleDragEnd}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {/* Deep space base — matches landing page */}
+      <div className="absolute inset-0" style={{
+        background: `
+          radial-gradient(ellipse 100% 80% at 50% 0%, #100508 0%, #04030A 50%),
+          radial-gradient(ellipse 60% 40% at 10% 60%, #0D0520 0%, transparent 60%),
+          radial-gradient(ellipse 60% 40% at 90% 40%, #100508 0%, transparent 60%),
+          #04030A
+        `,
+      }} />
+
+      {/* Nebula blobs */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `
+          radial-gradient(ellipse 40% 30% at 15% 70%, rgba(107,47,212,0.06) 0%, transparent 70%),
+          radial-gradient(ellipse 50% 35% at 85% 30%, rgba(212,164,84,0.05) 0%, transparent 70%),
+          radial-gradient(ellipse 40% 30% at 75% 85%, rgba(78,205,196,0.04) 0%, transparent 70%)
+        `,
+      }} />
+
       {/* Layer 1: Seasonal ambient background */}
       <SeasonalAmbient />
 
@@ -380,6 +498,55 @@ export function SkyCanvas() {
 
         {/* Zoom/Pan transform group — only interactive content */}
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          {/* Story satellite stars — each story orbits its person star as a smaller star.
+              Impact score (1–10) pulls high-impact stories closer to the person. */}
+          {state.persons.map((person) => {
+            const pos = nodePositions[person.id];
+            if (!pos || person.stories.length === 0) return null;
+            const storyCount = person.stories.length;
+            const personRadius = getStarRadius(storyCount);
+            const chainOpacity = Math.min(0.15 + storyCount * 0.07, 0.65);
+
+            return person.stories.map((story, i) => {
+              const impact = impactScores[story.id] ?? null;
+              const orbitRadius =
+                impact !== null
+                  ? personRadius + 8 + (10 - impact) * 2.6
+                  : personRadius + 22;
+
+              const angle = (i / storyCount) * Math.PI * 2 - Math.PI / 2;
+              const sx = pos.x + Math.cos(angle) * orbitRadius;
+              const sy = pos.y + Math.sin(angle) * orbitRadius;
+
+              let storyColor = 'rgba(255,255,255,0.9)';
+              if (state.seasonalCalendar && story.seasonTag !== 'unsure') {
+                const season = getSeasonById(state.seasonalCalendar, story.seasonTag);
+                if (season) storyColor = season.colorPalette.accentColor;
+              }
+
+              const glowR = impact !== null ? 4 + (impact / 10) * 4 : 5;
+              const bodyR = impact !== null ? 2 + (impact / 10) * 1.5 : 2.5;
+
+              return (
+                <g
+                  key={story.id}
+                  className="cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); setActiveStory({ story, personName: person.displayName }); }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Story: ${story.title}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setActiveStory({ story, personName: person.displayName }); }}
+                >
+                  <circle cx={sx} cy={sy} r={10} fill="transparent" />
+                  <line x1={pos.x} y1={pos.y} x2={sx} y2={sy} stroke="white" strokeOpacity={chainOpacity} strokeWidth={0.5} strokeDasharray="1.5 3" strokeLinecap="round" />
+                  <circle cx={sx} cy={sy} r={glowR} fill={storyColor} opacity={chainOpacity * 0.18} filter="url(#starGlow)" />
+                  <circle cx={sx} cy={sy} r={bodyR} fill={storyColor} opacity={Math.min(chainOpacity * 1.4, 1)} />
+                  <circle cx={sx} cy={sy} r={bodyR * 0.4} fill="white" opacity={Math.min(chainOpacity * 1.6, 1)} />
+                </g>
+              );
+            });
+          })}
+
           {/* Constellation lines */}
           {state.relationships.map((rel) => {
             const fromPos = nodePositions[rel.fromPersonId];
@@ -408,6 +575,7 @@ export function SkyCanvas() {
                 person={person}
                 x={pos.x}
                 y={pos.y}
+                isSelf={person.id === selfPersonId}
                 currentSeasonId={state.currentSeasonId}
                 moietyNames={moietyNames}
                 seasonalCalendar={state.seasonalCalendar}
@@ -431,6 +599,44 @@ export function SkyCanvas() {
         activeSeasonFilter={filterSeasonId}
         onSeasonClick={setFilterSeasonId}
       />
+
+      {/* Moiety name HTML overlays — positioned over the SVG moiety regions for hover tooltip support */}
+      {moietyNames && dimensions.width > 0 && (
+        <>
+          <div
+            className="absolute top-6 z-20 pointer-events-auto"
+            style={{ left: `${dimensions.width * 0.25}px`, transform: 'translateX(-50%)' }}
+          >
+            <WordTooltip
+              term={moietyNames[0]}
+              definition={state.kinshipTemplate?.description}
+            >
+              <span
+                className="text-[11px] font-light tracking-[0.15em] uppercase"
+                style={{ color: 'rgba(212, 160, 87, 0.35)' }}
+              >
+                {moietyNames[0]}
+              </span>
+            </WordTooltip>
+          </div>
+          <div
+            className="absolute top-6 z-20 pointer-events-auto"
+            style={{ left: `${dimensions.width * 0.75}px`, transform: 'translateX(-50%)' }}
+          >
+            <WordTooltip
+              term={moietyNames[1]}
+              definition={state.kinshipTemplate?.description}
+            >
+              <span
+                className="text-[11px] font-light tracking-[0.15em] uppercase"
+                style={{ color: 'rgba(107, 127, 184, 0.35)' }}
+              >
+                {moietyNames[1]}
+              </span>
+            </WordTooltip>
+          </div>
+        </>
+      )}
 
       {/* Zoom controls (bottom-left, above season wheel) */}
       <div className="absolute bottom-48 left-4 z-20 flex flex-col gap-1.5">
@@ -580,6 +786,21 @@ export function SkyCanvas() {
         <TimelinePanel
           onClose={handleClosePanel}
           onStoryClick={(personId) => handleSunClick(personId)}
+        />
+      )}
+
+      {/* Story popup — appears when clicking a story satellite star */}
+      {activeStory && (
+        <StoryPopup
+          story={activeStory.story}
+          personName={activeStory.personName}
+          seasonName={
+            state.seasonalCalendar && activeStory.story.seasonTag !== 'unsure'
+              ? getSeasonById(state.seasonalCalendar, activeStory.story.seasonTag)?.name
+              : undefined
+          }
+          impactScore={impactScores[activeStory.story.id]}
+          onClose={() => setActiveStory(null)}
         />
       )}
     </div>

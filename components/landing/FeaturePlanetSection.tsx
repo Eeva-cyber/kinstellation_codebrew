@@ -54,14 +54,14 @@ const BANDS: Record<string, Band[]> = {
   noongar: [
     { y:0.09, h:0.09, col:'#1A0800', a:0.97, amp:2,  freq:0.020, sp:0.89 }, // near-black polar cap
     { y:0.18, h:0.10, col:'#5A2C08', a:0.93, amp:4,  freq:0.024, sp:1.09 }, // dark brown belt
-    { y:0.27, h:0.05, col:'#C87C10', a:0.90, amp:5,  freq:0.031, sp:0.93 }, // thin burnt-orange divider
-    { y:0.32, h:0.15, col:'#FFD84A', a:0.96, amp:8,  freq:0.018, sp:1.11 }, // MAIN — saturated golden yellow
-    { y:0.46, h:0.06, col:'#FFF0A0', a:0.72, amp:4,  freq:0.035, sp:0.90 }, // bright highlight zone
-    { y:0.51, h:0.14, col:'#FADE77', a:0.92, amp:9,  freq:0.020, sp:1.07 }, // second wide belt
-    { y:0.64, h:0.05, col:'#E8A020', a:0.80, amp:3,  freq:0.033, sp:0.93 }, // vivid amber accent
+    { y:0.27, h:0.05, col:'#A86010', a:0.88, amp:5,  freq:0.031, sp:0.93 }, // thin burnt-ochre divider
+    { y:0.32, h:0.15, col:'#C8A870', a:0.94, amp:8,  freq:0.018, sp:1.11 }, // MAIN — warm sandy beige
+    { y:0.46, h:0.06, col:'#E8D8B0', a:0.70, amp:4,  freq:0.035, sp:0.90 }, // pale linen highlight
+    { y:0.51, h:0.14, col:'#B89060', a:0.88, amp:9,  freq:0.020, sp:1.07 }, // muted tan belt
+    { y:0.64, h:0.05, col:'#C87820', a:0.75, amp:3,  freq:0.033, sp:0.93 }, // amber-brown accent
     { y:0.69, h:0.11, col:'#6A2C08', a:0.91, amp:6,  freq:0.022, sp:1.10 }, // dark brown-rust belt
     { y:0.79, h:0.09, col:'#2A0A00', a:0.95, amp:3,  freq:0.020, sp:0.91 }, // near-black lower polar
-    { y:0.87, h:0.06, col:'#FADE77', a:0.55, amp:2,  freq:0.027, sp:1.03 }, // faint #FADE77 glow at base
+    { y:0.87, h:0.06, col:'#D4B880', a:0.45, amp:2,  freq:0.027, sp:1.03 }, // faint warm beige glow at base
   ],
   // ── Yolngu: void navy → teal → gold accent → bright aqua → dark → cream highlight ──
   yolngu: [

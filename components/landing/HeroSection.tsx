@@ -44,6 +44,13 @@ export function HeroSection({ scrollY }: HeroSectionProps) {
       {/* Aboriginal dot painting — fades out on scroll */}
       <div className="absolute inset-0" style={{ opacity: dotOpacity }}>
         <DotPainting />
+        {/* Radial vignette — hides rotating square corners */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse 62% 62% at 50% 50%, transparent 42%, #04030A 70%)',
+          }}
+        />
       </div>
 
       {/* Nebula color blobs */}
