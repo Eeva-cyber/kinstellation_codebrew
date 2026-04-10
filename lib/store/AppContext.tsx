@@ -387,6 +387,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
           rowToRelationship,
         );
 
+        // Auto-create self-person for new users (simplified onboarding no longer collects name)
+        if (persons.length === 0 && user) {
+          const selfId = localStorage.getItem('kinstellation_self_id') ?? crypto.randomUUID();
+          const displayName =
+            (user.user_metadata?.full_name as string | undefined) ??
+            user.email?.split('@')[0] ??
+            'Me';
+          const selfPerson: Person = {
+            id: selfId,
+            displayName,
+            regionSelectorValue: savedRegion ?? '',
+            isDeceased: false,
+            stories: [],
+            visibility: 'public',
+            lastUpdated: new Date().toISOString(),
+            position: { x: 800, y: 450 },
+          };
+          await supabase.from('persons').upsert(personToRow(selfPerson, user.id));
+          localStorage.setItem('kinstellation_self_id', selfId);
+          persons.push(selfPerson);
+        }
+
+        // Load connected users' stars (guest persons via invite system)
+        const { data: connections } = await supabase
+          .from('user_connections')
+          .select('*')
+          .or(`user_a_id.eq.${user!.id},user_b_id.eq.${user!.id}`);
+
+        if (connections && connections.length > 0) {
+          const partnerPersonIds = connections.map((c) =>
+            c.user_a_id === user!.id ? c.person_b_id : c.person_a_id,
+          );
+          const { data: guestRows } = await supabase
+            .from('persons')
+            .select('*')
+            .in('id', partnerPersonIds);
+
+          for (const row of guestRows ?? []) {
+            if (!persons.some((p) => p.id === row.id)) {
+              persons.push({ ...rowToPerson(row, []), isGuest: true });
+            }
+          }
+
+          for (const conn of connections) {
+            const selfPersonId =
+              conn.user_a_id === user!.id ? conn.person_a_id : conn.person_b_id;
+            const guestPersonId =
+              conn.user_a_id === user!.id ? conn.person_b_id : conn.person_a_id;
+            relationships.push({
+              id: conn.id,
+              fromPersonId: selfPersonId,
+              toPersonId: guestPersonId,
+              relationshipType: conn.relationship_type,
+              proximity: 'close',
+              isAvoidance: false,
+            });
+          }
+        }
+
         // Recompute calendar from saved region preference
         let kinshipTemplate = null;
         let seasonalCalendar = null;
@@ -464,7 +523,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     localStorage.removeItem(REGION_KEY);
+    localStorage.removeItem('kinstellation_profile');
+    localStorage.removeItem('kinstellation_self_id');
     await supabase.auth.signOut();
+    window.location.href = '/login';
   }, []);
 
   return (

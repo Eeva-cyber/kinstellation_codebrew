@@ -57,6 +57,7 @@ export interface Person {
   visibility: Visibility;
   lastUpdated: string; // ISO date
   position: { x: number; y: number };
+  isGuest?: boolean; // true for connected users' stars loaded via invite system
 }
 
 export interface Relationship {

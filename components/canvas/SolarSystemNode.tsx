@@ -9,6 +9,7 @@ interface SolarSystemNodeProps {
   x: number;
   y: number;
   isSelf?: boolean;
+  isGuest?: boolean;
   currentSeasonId: string | null;
   moietyNames?: [string, string];
   seasonalCalendar: SeasonalCalendar | null;
@@ -77,6 +78,7 @@ export function SolarSystemNode({
   x,
   y,
   isSelf,
+  isGuest,
   currentSeasonId,
   moietyNames,
   seasonalCalendar,
@@ -96,8 +98,9 @@ export function SolarSystemNode({
   const isSeasonRelevant = hasStoriesInSeason(person.stories, currentSeasonId);
   const starColor = getMoietyColor(person.moiety, moietyNames);
   const connectionBrightness = Math.min(1, 0.7 + connectionCount * 0.08);
+  const guestDim = isGuest ? 0.55 : 1;
   const finalOpacity = dimmed ? 0.12 : Math.min(
-    (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness, 1,
+    (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness * guestDim, 1,
   );
 
   const hasSkinName  = !!person.skinName;

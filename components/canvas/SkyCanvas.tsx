@@ -576,6 +576,7 @@ export function SkyCanvas() {
                 x={pos.x}
                 y={pos.y}
                 isSelf={person.id === selfPersonId}
+                isGuest={person.isGuest}
                 currentSeasonId={state.currentSeasonId}
                 moietyNames={moietyNames}
                 seasonalCalendar={state.seasonalCalendar}
@@ -754,6 +755,7 @@ export function SkyCanvas() {
         <PersonPanel
           person={activePerson}
           focusSection={personPanelFocus}
+          isSelf={activePerson.id === selfPersonId}
           onClose={handleClosePanel}
           onAddStory={(personId) => handleOpenStoryPanel(personId)}
           onAddConnection={(personId) => handleOpenConnectionPanel(personId)}
