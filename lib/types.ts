@@ -36,6 +36,7 @@ export interface Story {
   placeConnection?: string;
   visibility: Visibility;
   linkedPersonIds: string[];
+  impactScore?: number; // 1–10, scored by AI; higher = draws closer to person star
 }
 
 export interface Person {

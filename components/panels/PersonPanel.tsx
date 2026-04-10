@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/lib/store/AppContext';
 import type { Person, Visibility, Story, StoryType } from '@/lib/types';
 import { SeasonPicker } from '@/components/ui/SeasonPicker';
+import { WordTooltip } from '@/components/ui/WordTooltip';
 
 interface PersonPanelProps {
   person: Person;
@@ -152,7 +153,9 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
 
               {sectionNames ? (
                 <div>
-                  <label className="block text-xs text-white/30 mb-1">Skin name</label>
+                  <label className="block text-xs text-white/30 mb-1">
+                    <WordTooltip term="Skin name">Skin name</WordTooltip>
+                  </label>
                   <select
                     value={skinName}
                     onChange={(e) => setSkinName(e.target.value)}
@@ -170,7 +173,9 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
 
               {moietyNames && (
                 <div>
-                  <label className="block text-xs text-white/30 mb-1">Moiety</label>
+                  <label className="block text-xs text-white/30 mb-1">
+                    <WordTooltip term="Moiety">Moiety</WordTooltip>
+                  </label>
                   <div className="flex gap-2">
                     {moietyNames.map((m) => (
                       <button

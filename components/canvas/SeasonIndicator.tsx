@@ -2,6 +2,7 @@
 
 import { useApp } from '@/lib/store/AppContext';
 import { getSeasonById } from '@/lib/utils/season';
+import { WordTooltip } from '@/components/ui/WordTooltip';
 
 export function SeasonIndicator() {
   const { state } = useApp();
@@ -21,9 +22,11 @@ export function SeasonIndicator() {
             style={{ backgroundColor: season.colorPalette.accentColor }}
           />
           <div>
-            <span className="text-xs font-medium text-white/70 tracking-wide">
-              {season.name}
-            </span>
+            <WordTooltip term={season.name}>
+              <span className="text-xs font-medium text-white/70 tracking-wide">
+                {season.name}
+              </span>
+            </WordTooltip>
             <span className="text-xs text-white/30 ml-1.5">
               {season.nameEnglish}
             </span>

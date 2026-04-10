@@ -38,29 +38,7 @@ export function MoietyRegions({ width, height, moietyNames }: MoietyRegionsProps
         fill="url(#moietyBlend)"
         opacity={1}
       />
-      {/* Moiety labels */}
-      <text
-        x={width * 0.25}
-        y={32}
-        textAnchor="middle"
-        fill="rgba(212, 160, 87, 0.2)"
-        fontSize={11}
-        fontWeight={300}
-        letterSpacing="0.15em"
-      >
-        {moietyNames[0].toUpperCase()}
-      </text>
-      <text
-        x={width * 0.75}
-        y={32}
-        textAnchor="middle"
-        fill="rgba(107, 127, 184, 0.2)"
-        fontSize={11}
-        fontWeight={300}
-        letterSpacing="0.15em"
-      >
-        {moietyNames[1].toUpperCase()}
-      </text>
+      {/* Moiety labels are rendered as HTML overlays in SkyCanvas for hover tooltip support */}
       <defs>
         <radialGradient id="moietyWarm" cx="30%" cy="50%" r="70%">
           <stop offset="0%" stopColor="#d4a057" stopOpacity={0.06} />
