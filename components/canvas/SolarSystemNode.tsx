@@ -21,25 +21,55 @@ interface SolarSystemNodeProps {
 }
 
 function getMoietyColor(moiety: string | undefined, moietyNames?: [string, string]): string {
-  if (!moiety || !moietyNames) return 'rgba(255, 248, 230, 0.95)';
-  if (moiety === moietyNames[0]) return 'rgba(220, 180, 100, 1)';
-  if (moiety === moietyNames[1]) return 'rgba(140, 170, 220, 1)';
-  return 'rgba(255, 248, 230, 0.95)';
+  if (!moiety || !moietyNames) return '#FFE8A0';
+  if (moiety === moietyNames[0]) return '#DCA855';
+  if (moiety === moietyNames[1]) return '#7AB0E0';
+  return '#FFE8A0';
 }
 
-// Orbit configuration — larger overall
 const ORBITS = {
-  skinName: { radius: 35, planetRadius: 5, defaultColor: 'rgba(220, 180, 100, 0.85)', dimColor: 'rgba(255,255,255,0.18)' },
-  dob: { radius: 55, planetRadius: 5, defaultColor: 'rgba(100, 210, 210, 0.85)', dimColor: 'rgba(255,255,255,0.18)' },
-  stories: { radius: 75, planetRadius: 6, defaultColor: 'rgba(255,255,255,0.6)' },
-  media: { radius: 95, planetRadius: 7, defaultColor: 'rgba(190, 140, 230, 0.85)', dimColor: 'rgba(255,255,255,0.18)' },
+  inner:  { radius: 32, planetRadius: 4  },
+  middle: { radius: 52, planetRadius: 5  },
+  outer:  { radius: 72, planetRadius: 5.5 },
+  far:    { radius: 92, planetRadius: 6  },
 } as const;
 
-function planetPosition(cx: number, cy: number, orbitRadius: number, angle: number) {
-  return {
-    px: cx + orbitRadius * Math.cos(angle),
-    py: cy + orbitRadius * Math.sin(angle),
-  };
+function planetPos(cx: number, cy: number, r: number, angle: number) {
+  return { px: cx + r * Math.cos(angle), py: cy + r * Math.sin(angle) };
+}
+
+// Luminous orbit ring — inspired by nicegrpahic.jpg
+function OrbitRing({ cx, cy, r, active, color = 'rgba(160,210,255,1)' }: {
+  cx: number; cy: number; r: number; active: boolean; color?: string;
+}) {
+  const baseOpacity = active ? 0.28 : 0.09;
+  return (
+    <g>
+      {/* Soft glow behind the ring */}
+      <circle cx={cx} cy={cy} r={r} fill="none"
+        stroke={color} strokeWidth={4} opacity={baseOpacity * 0.25} />
+      {/* Crisp ring line */}
+      <circle cx={cx} cy={cy} r={r} fill="none"
+        stroke={color} strokeWidth={0.8}
+        strokeDasharray={active ? 'none' : '4 8'}
+        opacity={baseOpacity} />
+    </g>
+  );
+}
+
+// Glowing planet dot
+function Planet({ px, py, r, color, glow = true }: {
+  px: number; py: number; r: number; color: string; glow?: boolean;
+}) {
+  return (
+    <g>
+      {glow && <circle cx={px} cy={py} r={r + 4} fill={color} opacity={0.12} />}
+      {glow && <circle cx={px} cy={py} r={r + 2} fill={color} opacity={0.20} />}
+      <circle cx={px} cy={py} r={r} fill={color} opacity={0.92} />
+      {/* Bright specular highlight */}
+      <circle cx={px - r * 0.28} cy={py - r * 0.28} r={r * 0.32} fill="white" opacity={0.55} />
+    </g>
+  );
 }
 
 export function SolarSystemNode({
@@ -58,261 +88,150 @@ export function SolarSystemNode({
   onDragStart,
 }: SolarSystemNodeProps) {
   const storyCount = person.stories.length;
-
-  // Sun radius: bigger base, grows with stories AND connections
-  const baseRadius = Math.min(8 + storyCount * 1.5 + connectionCount * 2, 22);
+  const baseRadius = isSelf
+    ? Math.max(14 + storyCount * 1.2 + connectionCount * 1.5, 18)
+    : Math.min(9 + storyCount * 1.2 + connectionCount * 1.5, 20);
 
   const opacity = getStarOpacity(storyCount, person.lastUpdated);
   const isSeasonRelevant = hasStoriesInSeason(person.stories, currentSeasonId);
   const starColor = getMoietyColor(person.moiety, moietyNames);
-
-  // Brighter with more connections
   const connectionBrightness = Math.min(1, 0.7 + connectionCount * 0.08);
-  const finalOpacity = dimmed ? 0.15 : Math.min(
-    (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness,
-    1,
+  const finalOpacity = dimmed ? 0.12 : Math.min(
+    (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness, 1,
   );
 
-  const hasSkinName = !!person.skinName;
-  const hasMedia = person.stories.some((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video');
-  const mediaCount = person.stories.filter((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video').length;
+  const hasSkinName  = !!person.skinName;
+  const hasMedia     = person.stories.some((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video');
+  const showLabels   = zoom >= 1.2;
 
-  // Show detailed labels when zoomed in enough
-  const showLabels = zoom >= 1.3;
+  const selfColor  = '#D4A454';
+  const sunColor   = isSelf ? selfColor : starColor;
 
-  function getStoryColor(seasonTag: string): string {
-    if (!seasonalCalendar) return ORBITS.stories.defaultColor;
-    const season = getSeasonById(seasonalCalendar, seasonTag);
-    return season?.colorPalette.accentColor ?? ORBITS.stories.defaultColor;
+  function getStoryColor(tag: string) {
+    if (!seasonalCalendar) return '#AADDFF';
+    const s = getSeasonById(seasonalCalendar, tag);
+    return s?.colorPalette.accentColor ?? '#AADDFF';
   }
 
-  function storyPlanetAngles(count: number): number[] {
-    if (count === 0) return [];
-    const offset = -Math.PI / 2;
-    return Array.from({ length: count }, (_, i) => offset + (2 * Math.PI * i) / count);
-  }
+  const storyAngles = Array.from(
+    { length: storyCount },
+    (_, i) => -Math.PI / 2 + (2 * Math.PI * i) / storyCount,
+  );
 
-  const storyAngles = storyPlanetAngles(storyCount);
-
-  const selfColor = 'rgba(212, 164, 84, 1)';
-  const sunColor = isSelf ? selfColor : starColor;
-  const sunRadius = isSelf ? Math.max(baseRadius + 5, 15) : baseRadius;
+  // Planet colors — warm solar system palette
+  const innerColor  = hasSkinName ? '#E8C060' : 'rgba(255,255,255,0.15)';
+  const middleColor = 'rgba(140,210,255,0.5)';
+  const outerColor  = storyCount > 0 ? '#AADDFF' : 'rgba(255,255,255,0.1)';
+  const farColor    = hasMedia     ? '#C8A0F0' : 'rgba(255,255,255,0.08)';
 
   return (
-    <g
-      opacity={finalOpacity}
-      className="transition-opacity duration-300"
-    >
-      {/* Self node — layered golden glow */}
+    <g opacity={finalOpacity} className="transition-opacity duration-500">
+
+      {/* ── Nebula atmosphere — soft glow cloud around whole system ── */}
+      <circle cx={x} cy={y} r={ORBITS.far.radius + 45}
+        fill={isSelf ? 'rgba(212,164,84,0.025)' : 'rgba(120,180,255,0.018)'} />
+      <circle cx={x} cy={y} r={ORBITS.far.radius + 28}
+        fill={isSelf ? 'rgba(212,164,84,0.04)' : 'rgba(120,180,255,0.03)'} />
+
+      {/* ── Self extra corona ── */}
       {isSelf && (
         <>
-          {/* Soft outer halo */}
-          <circle cx={x} cy={y} r={sunRadius + 28} fill="rgba(212,164,84,0.04)" />
-          <circle cx={x} cy={y} r={sunRadius + 18} fill="rgba(212,164,84,0.08)" />
-          {/* Static amber ring */}
-          <circle cx={x} cy={y} r={sunRadius + 10} fill="none" stroke="rgba(212,164,84,0.25)" strokeWidth={1} />
-          {/* Pulsing outer ring */}
-          <circle cx={x} cy={y} r={sunRadius + 16} fill="none" stroke="rgba(212,164,84,0.15)" strokeWidth={1} className="animate-star-pulse" />
-          {/* Pulsing inner ring */}
-          <circle cx={x} cy={y} r={sunRadius + 6} fill="none" stroke="rgba(212,164,84,0.55)" strokeWidth={1.5} className="animate-star-pulse" />
+          <circle cx={x} cy={y} r={baseRadius + 36} fill="none"
+            stroke="rgba(212,164,84,0.08)" strokeWidth={6} />
+          <circle cx={x} cy={y} r={baseRadius + 22} fill="none"
+            stroke="rgba(212,164,84,0.18)" strokeWidth={3} className="animate-star-pulse" />
+          <circle cx={x} cy={y} r={baseRadius + 12} fill="none"
+            stroke="rgba(212,164,84,0.45)" strokeWidth={1.5} className="animate-star-pulse" />
         </>
       )}
 
-      {/* Orbit rings */}
-      <OrbitRing cx={x} cy={y} r={ORBITS.skinName.radius} active={hasSkinName} />
-      <OrbitRing cx={x} cy={y} r={ORBITS.dob.radius} active={false} />
-      <OrbitRing cx={x} cy={y} r={ORBITS.stories.radius} active={storyCount > 0} />
-      {(hasMedia || storyCount === 0) && (
-        <OrbitRing cx={x} cy={y} r={ORBITS.media.radius} active={hasMedia} />
-      )}
+      {/* ── Orbit rings (bird's-eye, luminous) ── */}
+      <OrbitRing cx={x} cy={y} r={ORBITS.inner.radius}  active={hasSkinName}    color={isSelf ? 'rgba(212,164,84,0.9)' : 'rgba(220,180,100,0.9)'} />
+      <OrbitRing cx={x} cy={y} r={ORBITS.middle.radius} active={false}          color="rgba(140,210,255,0.9)" />
+      <OrbitRing cx={x} cy={y} r={ORBITS.outer.radius}  active={storyCount > 0} color="rgba(160,220,255,0.9)" />
+      <OrbitRing cx={x} cy={y} r={ORBITS.far.radius}    active={hasMedia}       color="rgba(180,140,255,0.9)" />
 
-      {/* Skin name planet — inner orbit */}
-      <g
-        className="cursor-pointer"
-        onClick={(e) => { e.stopPropagation(); onPlanetClick('identity'); }}
-      >
+      {/* ── Inner planet (skin name / identity) ── */}
+      <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlanetClick('identity'); }}>
         {(() => {
-          const { px, py } = planetPosition(x, y, ORBITS.skinName.radius, -Math.PI / 4);
+          const { px, py } = planetPos(x, y, ORBITS.inner.radius, -Math.PI / 5);
           return (
             <>
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.skinName.planetRadius}
-                fill={hasSkinName ? ORBITS.skinName.defaultColor : ORBITS.skinName.dimColor}
-              />
+              <circle cx={px} cy={py} r={18} fill="transparent" />
+              <Planet px={px} py={py} r={ORBITS.inner.planetRadius} color={innerColor} glow={hasSkinName} />
               {hasSkinName && showLabels && (
-                <text
-                  x={px} y={py - 9}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.75)"
-                  fontSize={9}
-                  fontWeight={400}
-                >
+                <text x={px} y={py - 10} textAnchor="middle"
+                  fill="rgba(255,220,120,0.8)" fontSize={8} fontWeight={400}>
                   {person.skinName}
                 </text>
               )}
-              {!hasSkinName && showLabels && (
-                <text
-                  x={px} y={py - 9}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.25)"
-                  fontSize={8}
-                  fontWeight={300}
-                >
-                  skin
-                </text>
-              )}
             </>
           );
         })()}
       </g>
 
-      {/* DOB planet — second orbit */}
-      <g
-        className="cursor-pointer"
-        onClick={(e) => { e.stopPropagation(); onPlanetClick('identity'); }}
-      >
+      {/* ── Middle planet (identity details) ── */}
+      <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlanetClick('identity'); }}>
         {(() => {
-          const { px, py } = planetPosition(x, y, ORBITS.dob.radius, Math.PI / 3);
+          const { px, py } = planetPos(x, y, ORBITS.middle.radius, Math.PI / 3);
           return (
             <>
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.dob.planetRadius}
-                fill={ORBITS.dob.dimColor}
-              />
-              {showLabels && (
-                <text
-                  x={px} y={py - 9}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.25)"
-                  fontSize={8}
-                  fontWeight={300}
-                >
-                  birth
-                </text>
-              )}
+              <circle cx={px} cy={py} r={18} fill="transparent" />
+              <Planet px={px} py={py} r={ORBITS.middle.planetRadius} color={middleColor} glow={false} />
             </>
           );
         })()}
       </g>
 
-      {/* Story planets — third orbit */}
+      {/* ── Outer orbit: story planets ── */}
       {storyCount > 0 ? (
         storyAngles.map((angle, i) => {
-          const { px, py } = planetPosition(x, y, ORBITS.stories.radius, angle);
+          const { px, py } = planetPos(x, y, ORBITS.outer.radius, angle);
           const story = person.stories[i];
+          const col = getStoryColor(story.seasonTag);
           return (
-            <g
-              key={story.id}
-              className="cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); onPlanetClick('stories'); }}
-            >
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.stories.planetRadius}
-                fill={getStoryColor(story.seasonTag)}
-                opacity={0.9}
-              />
-              {/* Glow */}
-              <circle
-                cx={px} cy={py}
-                r={ORBITS.stories.planetRadius + 3}
-                fill={getStoryColor(story.seasonTag)}
-                opacity={0.15}
-              />
+            <g key={story.id} className="cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); onPlanetClick('stories'); }}>
+              <circle cx={px} cy={py} r={16} fill="transparent" />
+              <Planet px={px} py={py} r={ORBITS.outer.planetRadius} color={col} />
               {showLabels && (
-                <text
-                  x={px} y={py - 10}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.65)"
-                  fontSize={8}
-                  fontWeight={400}
-                >
-                  {story.title.length > 12 ? story.title.slice(0, 11) + '...' : story.title}
+                <text x={px} y={py - 11} textAnchor="middle"
+                  fill="rgba(255,255,255,0.6)" fontSize={7.5} fontWeight={400}>
+                  {story.title.length > 10 ? story.title.slice(0, 9) + '…' : story.title}
                 </text>
               )}
             </g>
           );
         })
       ) : (
-        <g
-          className="cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); onPlanetClick('stories'); }}
-        >
+        <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlanetClick('stories'); }}>
           {(() => {
-            const { px, py } = planetPosition(x, y, ORBITS.stories.radius, -Math.PI / 2);
+            const { px, py } = planetPos(x, y, ORBITS.outer.radius, -Math.PI / 2);
             return (
               <>
-                <circle
-                  cx={px} cy={py}
-                  r={ORBITS.stories.planetRadius}
-                  fill="rgba(255,255,255,0.1)"
-                  strokeDasharray="2 3"
-                  stroke="rgba(255,255,255,0.15)"
-                  strokeWidth={0.8}
-                />
-                {showLabels && (
-                  <text
-                    x={px} y={py - 10}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.25)"
-                    fontSize={8}
-                    fontWeight={300}
-                  >
-                    stories
-                  </text>
-                )}
+                <circle cx={px} cy={py} r={16} fill="transparent" />
+                <circle cx={px} cy={py} r={ORBITS.outer.planetRadius}
+                  fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={0.8} strokeDasharray="2 4" />
               </>
             );
           })()}
         </g>
       )}
 
-      {/* Media planet — outermost orbit */}
-      {(hasMedia || storyCount === 0) && (
-        <g
-          className="cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); onPlanetClick('media'); }}
-        >
-          {(() => {
-            const { px, py } = planetPosition(x, y, ORBITS.media.radius, Math.PI / 6);
-            return (
-              <>
-                <circle
-                  cx={px} cy={py}
-                  r={ORBITS.media.planetRadius}
-                  fill={hasMedia ? ORBITS.media.defaultColor : ORBITS.media.dimColor}
-                />
-                {hasMedia && mediaCount > 1 && (
-                  <text
-                    x={px} y={py + 3}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.8)"
-                    fontSize={8}
-                    fontWeight={600}
-                  >
-                    {mediaCount}
-                  </text>
-                )}
-                {showLabels && (
-                  <text
-                    x={px} y={py - 11}
-                    textAnchor="middle"
-                    fill={hasMedia ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.25)'}
-                    fontSize={8}
-                    fontWeight={300}
-                  >
-                    media
-                  </text>
-                )}
-              </>
-            );
-          })()}
-        </g>
-      )}
+      {/* ── Far orbit: media planet ── */}
+      <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlanetClick('media'); }}>
+        {(() => {
+          const { px, py } = planetPos(x, y, ORBITS.far.radius, Math.PI / 5);
+          return (
+            <>
+              <circle cx={px} cy={py} r={18} fill="transparent" />
+              <Planet px={px} py={py} r={ORBITS.far.planetRadius} color={farColor} glow={hasMedia} />
+            </>
+          );
+        })()}
+      </g>
 
-      {/* Sun — central star (draggable, main click target) */}
+      {/* ── Central sun — layered glow like goodgraphic.jpg ── */}
       <g
         className="cursor-pointer"
         onClick={(e) => { e.stopPropagation(); onSunClick(); }}
@@ -320,120 +239,64 @@ export function SolarSystemNode({
         onTouchStart={onDragStart}
         role="button"
         tabIndex={0}
-        aria-label={`${person.displayName} — ${storyCount} ${storyCount === 1 ? 'story' : 'stories'}, ${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`}
+        aria-label={`${person.displayName}`}
         onKeyDown={(e) => e.key === 'Enter' && onSunClick()}
       >
-        {/* Sun glow halo */}
-        <circle
-          cx={x} cy={y}
-          r={sunRadius + 5}
-          fill={sunColor}
-          opacity={isSelf ? 0.35 : 0.2}
-          filter="url(#starGlow)"
-        />
-        {/* Main sun */}
-        <circle
-          cx={x} cy={y}
-          r={sunRadius}
-          fill={sunColor}
-        />
-        {/* Inner bright core */}
-        <circle
-          cx={x} cy={y}
-          r={sunRadius * 0.4}
-          fill="white"
-          opacity={0.85}
-        />
-        {/* Deceased indicator ring */}
+        {/* Corona layers */}
+        <circle cx={x} cy={y} r={baseRadius + 18} fill={sunColor} opacity={0.04} />
+        <circle cx={x} cy={y} r={baseRadius + 10} fill={sunColor} opacity={0.10} />
+        <circle cx={x} cy={y} r={baseRadius + 5}  fill={sunColor} opacity={0.22} filter="url(#starGlow)" />
+        {/* Main body */}
+        <circle cx={x} cy={y} r={baseRadius} fill={sunColor} opacity={0.95} />
+        {/* Bright white core */}
+        <circle cx={x} cy={y} r={baseRadius * 0.45} fill="white" opacity={0.92} />
+        {/* Tiny specular peak */}
+        <circle cx={x - baseRadius * 0.2} cy={y - baseRadius * 0.2}
+          r={baseRadius * 0.18} fill="white" opacity={0.6} />
+        {/* Deceased ring */}
         {person.isDeceased && (
-          <circle
-            cx={x} cy={y}
-            r={sunRadius + 7}
-            fill="none"
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth={0.8}
-          />
+          <circle cx={x} cy={y} r={baseRadius + 8}
+            fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.8} />
         )}
       </g>
 
-      {/* Season relevance pulse on sun */}
+      {/* ── Season pulse ── */}
       {isSeasonRelevant && !dimmed && (
-        <circle
-          cx={x} cy={y}
-          r={sunRadius + 8}
-          fill="none"
-          stroke={sunColor}
-          strokeWidth={0.8}
-          opacity={0.4}
-          className="animate-star-pulse"
-        />
+        <circle cx={x} cy={y} r={baseRadius + 9}
+          fill="none" stroke={sunColor} strokeWidth={1}
+          opacity={0.5} className="animate-star-pulse" />
       )}
 
-      {/* Name label */}
+      {/* ── Name labels ── */}
       {isSelf ? (
         <>
-          <text
-            x={x}
-            y={y + ORBITS.media.radius + 14}
-            textAnchor="middle"
-            fill="rgba(212,164,84,0.95)"
-            fontSize={13}
-            fontWeight={500}
-            letterSpacing="0.08em"
-          >
+          <text x={x} y={y + ORBITS.far.radius + 16}
+            textAnchor="middle" fill="rgba(212,164,84,0.95)"
+            fontSize={13} fontWeight={500} letterSpacing="0.06em">
             {person.displayName}
           </text>
-          <text
-            x={x}
-            y={y + ORBITS.media.radius + 28}
-            textAnchor="middle"
-            fill="rgba(212,164,84,0.35)"
-            fontSize={9}
-            fontWeight={300}
-            letterSpacing="0.18em"
-          >
+          <text x={x} y={y + ORBITS.far.radius + 29}
+            textAnchor="middle" fill="rgba(212,164,84,0.35)"
+            fontSize={8.5} fontWeight={300} letterSpacing="0.2em">
             YOUR STAR
           </text>
         </>
       ) : (
-        <text
-          x={x}
-          y={y + ORBITS.media.radius + 18}
-          textAnchor="middle"
-          fill="rgba(255, 255, 255, 0.85)"
-          fontSize={12}
-          fontWeight={400}
-        >
+        <text x={x} y={y + ORBITS.far.radius + 18}
+          textAnchor="middle" fill="rgba(255,255,255,0.75)"
+          fontSize={11} fontWeight={300}>
           {person.displayName}
         </text>
       )}
 
-      {/* Connection count badge (when zoomed in and has connections) */}
+      {/* ── Connection count ── */}
       {showLabels && connectionCount > 0 && (
-        <text
-          x={x}
-          y={y + ORBITS.media.radius + 32}
-          textAnchor="middle"
-          fill="rgba(255, 255, 255, 0.4)"
-          fontSize={9}
-          fontWeight={300}
-        >
+        <text x={x} y={y + ORBITS.far.radius + (isSelf ? 44 : 32)}
+          textAnchor="middle" fill="rgba(255,255,255,0.3)"
+          fontSize={8} fontWeight={300}>
           {connectionCount} {connectionCount === 1 ? 'connection' : 'connections'}
         </text>
       )}
     </g>
-  );
-}
-
-function OrbitRing({ cx, cy, r, active }: { cx: number; cy: number; r: number; active: boolean }) {
-  return (
-    <circle
-      cx={cx} cy={cy} r={r}
-      fill="none"
-      stroke="rgba(255,255,255,0.2)"
-      strokeWidth={0.6}
-      strokeDasharray={active ? 'none' : '3 6'}
-      opacity={active ? 0.25 : 0.08}
-    />
   );
 }
