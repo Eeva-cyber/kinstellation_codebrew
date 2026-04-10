@@ -16,6 +16,9 @@ export interface PlanetFeature {
   figurePlaceholder: string;
   figureRole: string;
   flip?: boolean;
+  personName: string;
+  personCountry: string;
+  personBio: string;
 }
 
 const FIGURE_PHOTOS: Record<string, string> = {
@@ -523,9 +526,10 @@ function FigurePlaceholder({ planet, visible }: { planet: PlanetFeature; visible
         </div>
       </div>
 
-      <div className="text-center">
-        <p className="text-xs tracking-widest uppercase" style={{ color: `${planet.color}90` }}>{planet.figureRole}</p>
-        <p className="text-[11px] text-white/25 mt-0.5 italic">{planet.figurePlaceholder}</p>
+      <div className="text-center max-w-xs">
+        <p className="text-lg font-light text-white/90 tracking-wide">{planet.personName}</p>
+        <p className="text-[11px] tracking-widest uppercase mt-1" style={{ color: planet.color }}>{planet.figureRole}</p>
+        <p className="text-[11px] text-white/35 mt-1 italic">{planet.personCountry}</p>
       </div>
     </div>
   );
