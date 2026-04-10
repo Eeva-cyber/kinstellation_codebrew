@@ -37,6 +37,11 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Dev bypass: set DEV_SKIP_AUTH=true in .env.local to skip auth checks locally
+  if (process.env.DEV_SKIP_AUTH === 'true') {
+    return supabaseResponse;
+  }
+
   // Protected routes: redirect to /login if not authenticated
   const isProtected =
     pathname.startsWith('/canvas') || pathname.startsWith('/onboarding');
