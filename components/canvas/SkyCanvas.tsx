@@ -47,7 +47,7 @@ interface LinkDatum extends SimulationLinkDatum<NodeDatum> {
 }
 
 export function SkyCanvas() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -88,6 +88,49 @@ export function SkyCanvas() {
     }
   }, [state.persons]);
 
+  // Ensure self person exists on canvas — runs after Supabase load completes
+  useEffect(() => {
+    if (!state.initialized) return;
+    const profile = localStorage.getItem('kinstellation_profile');
+    if (!profile) return;
+
+    let parsed: { name?: string; mob?: string; skinName?: string } = {};
+    try { parsed = JSON.parse(profile); } catch { return; }
+    if (!parsed.name) return;
+
+    const existingId = localStorage.getItem('kinstellation_self_id');
+
+    // Check if person already exists in state
+    if (existingId && state.persons.some((p) => p.id === existingId)) return;
+
+    // Try to recover by name match
+    const match = state.persons.find(
+      (p) => p.displayName.trim().toLowerCase() === parsed.name!.trim().toLowerCase()
+    );
+    if (match) {
+      localStorage.setItem('kinstellation_self_id', match.id);
+      setSelfPersonId(match.id);
+      return;
+    }
+
+    // Create the self person now (after Supabase data is loaded)
+    const selfId = crypto.randomUUID();
+    const selfPerson: Person = {
+      id: selfId,
+      displayName: parsed.name.trim(),
+      skinName: parsed.skinName ?? undefined,
+      countryLanguageGroup: parsed.mob ?? undefined,
+      regionSelectorValue: localStorage.getItem('kinstellation_region') ?? '',
+      isDeceased: false,
+      stories: [],
+      visibility: 'public',
+      lastUpdated: new Date().toISOString(),
+      position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    };
+    dispatch({ type: 'ADD_PERSON', payload: selfPerson });
+    localStorage.setItem('kinstellation_self_id', selfId);
+    setSelfPersonId(selfId);
+  }, [state.initialized, state.persons]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connection count per person (memoized)
   const connectionCounts = useMemo(() => {
