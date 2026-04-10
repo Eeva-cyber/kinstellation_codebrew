@@ -121,7 +121,12 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
   }
 
   return (
-    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
+    <div
+      className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto"
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div
         ref={scrollRef}
         className="h-full backdrop-blur-xl panel-scroll"

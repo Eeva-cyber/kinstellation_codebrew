@@ -32,36 +32,65 @@ These are not separate features. They are the same system viewed from different 
 - TypeScript
 - Tailwind CSS v4
 - D3.js (force simulation for constellation layout — physics only, React renders SVG)
-- localStorage for data persistence (no backend for MVP)
+- Supabase (auth + Postgres database)
+- `@supabase/ssr` for server-side auth in middleware
 
 ## Architecture
 
 ```
 app/
-  page.tsx            — Client redirect: /onboarding (no region) or /canvas (initialized)
-  onboarding/page.tsx — Region selector → loads kinship template + seasonal calendar
-  canvas/page.tsx     — Main sky canvas
+  page.tsx                    — Client redirect: /onboarding (no region) or /canvas (initialized)
+  onboarding/page.tsx         — Region selector → loads kinship template + seasonal calendar
+  canvas/page.tsx             — Main sky canvas
+  login/page.tsx              — Magic link OTP + Google OAuth login; passes ?next= to callback
+  auth/callback/route.ts      — Exchanges Supabase auth code, redirects to ?next= (defaults /canvas)
+  api/
+    analyze-story/route.ts    — AI story impact scoring (1–10)
+    invite/create/route.ts    — POST: creates invitation row, returns token (7-day expiry)
+    invite/accept/route.ts    — POST: validates token, creates user_connections row
+  invite/[token]/page.tsx     — Invite landing page; unauthenticated → login CTA, authenticated → connect
+
+proxy.ts (middleware)         — Route protection: /canvas + /onboarding require auth; redirects to
+                                /login?next=<path>. /invite/* allowed unauthenticated. Auth users
+                                visiting /login are redirected to /canvas.
 
 lib/
-  types.ts            — All TypeScript types (Person, Relationship, Story with optional year, etc.)
+  types.ts            — All TypeScript types (Person has isGuest?: boolean for connected users)
   data/               — Seasonal calendars, kinship templates, region configs (static JSON)
-  store/AppContext.tsx — React Context + useReducer, persists to localStorage
+  store/AppContext.tsx — React Context + useReducer; syncs to Supabase (persons, stories, relationships);
+                         auto-creates self-person for new users from auth metadata;
+                         loads guest stars from user_connections table; signOut clears localStorage
   utils/season.ts     — Season detection, star radius/opacity calculations
+  supabase.ts         — Supabase client (browser)
+  supabase-server.ts  — Supabase client (server/SSR)
+
+supabase/
+  migrations/001_invitations_and_connections.sql — invitations + user_connections tables
 
 components/
-  canvas/             — SkyCanvas (zoom/pan/D3 force), SolarSystemNode (sun + orbit planets),
+  canvas/             — SkyCanvas (zoom/pan/D3 force + invite overlay in bottom toolbar),
+                        SolarSystemNode (sun + orbit planets; isGuest dims to 55% opacity),
                         ConstellationLine, MilkyWay, MoietyRegions, SeasonalAmbient,
-                        SeasonIndicator, SeasonWheel, StarFieldBg
-  panels/             — PersonPanel (collapsible sections, inline quick-story form),
-                        QuickAddModal (2-field centered add), StoryPanel, AddConnectionPanel,
-                        StoriesRiverPanel, TimelinePanel (season-column story distribution)
-  onboarding/         — RegionSelector
-  ui/                 — SeasonPicker
+                        SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes
+  panels/             — PersonPanel (collapsible sections, inline quick-story form;
+                        isSelf prop shows invite link UI),
+                        QuickAddModal, StoryPanel, AddConnectionPanel,
+                        StoriesRiverPanel, TimelinePanel
+  onboarding/         — RegionSelector (single dropdown, simplified)
+  ui/                 — SeasonPicker, StoryPopup, WordTooltip
 ```
+
+## Auth & data flow
+
+- **Login**: `/login` → Supabase `signInWithOtp` (magic link) or `signInWithOAuth` (Google). Both pass `?next=` to the callback so users land on `/canvas`.
+- **Session**: `proxy.ts` (Next.js middleware) calls `supabase.auth.getUser()` on every request to refresh the session cookie and enforce route protection.
+- **Self-person**: On first load, `AppContext` auto-creates a `Person` row in Supabase using the auth user's display name / email. The person ID is stored in `localStorage` as `kinstellation_self_id`. On subsequent loads the ID is read from localStorage; for existing users without the key, `AppContext` matches by display name and sets it.
+- **Guest stars**: Connected users' stars are loaded from the `user_connections` table and rendered with `isGuest: true` (55% opacity, no edit controls).
+- **Invite system**: Bottom-right toolbar link icon → `/api/invite/create` (POST) → returns a 7-day token → invite URL displayed. Recipient visits `/invite/[token]`, logs in if needed, then `/api/invite/accept` creates a `user_connections` row linking both users' self-persons.
 
 ## Data model
 
-- **Person** — id, displayName, indigenousName, skinName, moiety, stories[], visibility, lastUpdated, position (x/y)
+- **Person** — id, displayName, indigenousName, skinName, moiety, stories[], visibility, lastUpdated, position (x/y), isGuest?
 - **Relationship** — fromPersonId, toPersonId, relationshipType (12 types including classificatory), isAvoidance
 - **Story** — title, type (text/photo/audio/video), content, seasonTag (required), year (optional), seasonalContext, visibility
 - **SeasonalCalendar** — seasons[] each with name, approximateMonths, colorPalette, celestialIndicators

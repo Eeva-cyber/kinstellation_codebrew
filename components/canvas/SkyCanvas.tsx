@@ -61,6 +61,10 @@ export function SkyCanvas() {
   const dragOffset = useRef({ x: 0, y: 0 });
   const simulationRef = useRef<ReturnType<typeof forceSimulation<NodeDatum>> | null>(null);
   const [filterSeasonId, setFilterSeasonId] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [showInviteOverlay, setShowInviteOverlay] = useState(false);
 
   // Zoom & pan state
   const [zoom, setZoom] = useState(1);
@@ -417,6 +421,18 @@ export function SkyCanvas() {
     setPersonPanelFocus(undefined);
   }, []);
 
+  const handleInvite = useCallback(async () => {
+    setShowInviteOverlay((v) => !v);
+    if (inviteLink) return;
+    setInviteLoading(true);
+    try {
+      const res = await fetch('/api/invite/create', { method: 'POST' });
+      const data = await res.json();
+      if (data.token) setInviteLink(`${window.location.origin}/invite/${data.token}`);
+    } catch { /* ignore */ }
+    setInviteLoading(false);
+  }, [inviteLink]);
+
   const activePerson = activePersonId
     ? state.persons.find((p) => p.id === activePersonId) ?? null
     : null;
@@ -667,6 +683,56 @@ export function SkyCanvas() {
         </button>
       </div>
 
+      {/* Invite overlay */}
+      {showInviteOverlay && (
+        <div
+          className="absolute bottom-20 right-4 z-30 w-72 rounded-xl p-4 animate-fade-in"
+          style={{ background: 'rgba(8,4,22,0.97)', border: '1px solid rgba(88,28,135,0.4)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs uppercase tracking-wider" style={{ color: 'rgba(212,164,84,0.7)' }}>
+              Invite to your constellation
+            </h3>
+            <button
+              onClick={() => setShowInviteOverlay(false)}
+              className="text-white/30 hover:text-white/60 text-lg leading-none"
+            >
+              &times;
+            </button>
+          </div>
+          {inviteLoading ? (
+            <p className="text-xs text-white/30">Creating link…</p>
+          ) : inviteLink ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={inviteLink}
+                  className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white/70 truncate"
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(inviteLink);
+                    setInviteCopied(true);
+                    setTimeout(() => setInviteCopied(false), 2000);
+                  }}
+                  className="text-xs shrink-0 transition-colors"
+                  style={{ color: inviteCopied ? 'rgba(212,164,84,0.9)' : 'rgba(212,164,84,0.5)' }}
+                >
+                  {inviteCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-xs text-white/20">Expires in 7 days. Share this link to connect your stars.</p>
+            </div>
+          ) : (
+            <p className="text-xs text-red-400/60">Failed to create link. Try again.</p>
+          )}
+        </div>
+      )}
+
       {/* Bottom toolbar */}
       <div className="absolute bottom-4 right-4 z-20 flex gap-2">
         {/* Timeline button */}
@@ -689,6 +755,24 @@ export function SkyCanvas() {
             <circle cx="5" cy="9" r="1.5" fill="currentColor" />
             <circle cx="9" cy="9" r="1.5" fill="currentColor" />
             <circle cx="13" cy="9" r="1.5" fill="currentColor" />
+          </svg>
+        </button>
+
+        {/* Invite button */}
+        <button
+          onClick={handleInvite}
+          className="w-12 h-12 rounded-full
+            bg-white/[0.08] border border-white/[0.1] backdrop-blur-sm
+            hover:bg-white/[0.14] transition-all duration-200
+            flex items-center justify-center group"
+          aria-label="Invite to constellation"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+            className="text-white/60 group-hover:text-white/90 transition-colors">
+            <path d="M7.5 10.5a3.5 3.5 0 0 0 5 0l2-2a3.536 3.536 0 0 0-5-5l-1 1"
+              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M10.5 7.5a3.5 3.5 0 0 0-5 0l-2 2a3.536 3.536 0 0 0 5 5l1-1"
+              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
 

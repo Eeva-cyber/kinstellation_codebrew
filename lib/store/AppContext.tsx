@@ -387,6 +387,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           rowToRelationship,
         );
 
+        // For existing users: ensure kinstellation_self_id is set in localStorage
+        if (persons.length > 0 && !localStorage.getItem('kinstellation_self_id') && user) {
+          const displayName =
+            (user.user_metadata?.full_name as string | undefined) ??
+            user.email?.split('@')[0] ??
+            '';
+          const match = persons.find(
+            (p) => p.displayName.toLowerCase().trim() === displayName.toLowerCase().trim(),
+          );
+          localStorage.setItem('kinstellation_self_id', (match ?? persons[0]).id);
+        }
+
         // Auto-create self-person for new users (simplified onboarding no longer collects name)
         if (persons.length === 0 && user) {
           const selfId = localStorage.getItem('kinstellation_self_id') ?? crypto.randomUUID();
