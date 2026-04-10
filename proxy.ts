@@ -33,20 +33,6 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublicRoute = pathname === '/login' || pathname.startsWith('/auth/');
 
-  // Redirect unauthenticated visitors to login
-  if (!user && !isPublicRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  // Redirect authenticated visitors away from login
-  if (user && pathname === '/login') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
-  }
-
   return supabaseResponse;
 }
 
