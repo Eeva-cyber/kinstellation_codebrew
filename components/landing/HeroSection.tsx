@@ -30,10 +30,10 @@ export function HeroSection({ scrollY }: HeroSectionProps) {
       <div
         className="absolute inset-0"
         style={{
-          background: `radial-gradient(ellipse at 50% 40%,
-            #1A0A00 0%,
-            #0D0508 30%,
-            #04030A 60%,
+          background: `radial-gradient(ellipse at 50% 45%,
+            #1C0A02 0%,
+            #0F0418 30%,
+            #04030A 62%,
             #020208 100%)`,
         }}
       />
@@ -51,9 +51,10 @@ export function HeroSection({ scrollY }: HeroSectionProps) {
         className="absolute inset-0 pointer-events-none"
         style={{
           background: `
-            radial-gradient(ellipse 60% 40% at 20% 80%, rgba(107,47,212,0.12) 0%, transparent 70%),
-            radial-gradient(ellipse 50% 40% at 80% 20%, rgba(212,164,84,0.1) 0%, transparent 70%),
-            radial-gradient(ellipse 40% 30% at 80% 80%, rgba(78,205,196,0.08) 0%, transparent 70%)
+            radial-gradient(ellipse 55% 45% at 18% 72%, rgba(107,47,212,0.18) 0%, transparent 70%),
+            radial-gradient(ellipse 45% 35% at 82% 18%, rgba(212,164,84,0.15) 0%, transparent 70%),
+            radial-gradient(ellipse 40% 30% at 78% 82%, rgba(180,40,80,0.10) 0%, transparent 70%),
+            radial-gradient(ellipse 30% 25% at 25% 25%, rgba(90,30,180,0.10) 0%, transparent 70%)
           `,
           opacity: starsOpacity,
         }}

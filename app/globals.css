@@ -126,6 +126,26 @@ body {
   50%       { opacity: 1;   transform: scale(1.6); }
 }
 
+@keyframes surfaceScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes atmospherePulse {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 0.85; }
+}
+
+@keyframes ringRotate {
+  from { transform: rotateX(72deg) rotateZ(0deg); }
+  to   { transform: rotateX(72deg) rotateZ(360deg); }
+}
+
+@keyframes planetFloatOnly {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
