@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   forceSimulation,
   forceLink,
@@ -17,15 +17,22 @@ import { MilkyWay } from './MilkyWay';
 import { MoietyRegions } from './MoietyRegions';
 import { SeasonalAmbient } from './SeasonalAmbient';
 import { ConstellationLine } from './ConstellationLine';
-import { StarNode } from './StarNode';
+import { SolarSystemNode } from './SolarSystemNode';
 import { SeasonIndicator } from './SeasonIndicator';
+import { SeasonWheel } from './SeasonWheel';
 import { PersonPanel } from '@/components/panels/PersonPanel';
 import { StoryPanel } from '@/components/panels/StoryPanel';
 import { AddConnectionPanel } from '@/components/panels/AddConnectionPanel';
 import { StoriesRiverPanel } from '@/components/panels/StoriesRiverPanel';
-import type { Person, Relationship } from '@/lib/types';
+import { QuickAddModal } from '@/components/panels/QuickAddModal';
+import { TimelinePanel } from '@/components/panels/TimelinePanel';
+import type { Person } from '@/lib/types';
 
-type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | null;
+type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | 'timeline' | null;
+
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.06;
 
 interface NodeDatum extends SimulationNodeDatum {
   id: string;
@@ -43,11 +50,32 @@ export function SkyCanvas() {
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [activePanel, setActivePanel] = useState<PanelType>(null);
   const [activePersonId, setActivePersonId] = useState<string | null>(null);
+  const [personPanelFocus, setPersonPanelFocus] = useState<'identity' | 'stories' | 'connections' | undefined>(undefined);
   const [dragging, setDragging] = useState<string | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const simulationRef = useRef<ReturnType<typeof forceSimulation<NodeDatum>> | null>(null);
+  const [filterSeasonId, setFilterSeasonId] = useState<string | null>(null);
+
+  // Zoom & pan state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [panning, setPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
+
+  // Connection count per person (memoized)
+  const connectionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of state.persons) {
+      counts[p.id] = 0;
+    }
+    for (const r of state.relationships) {
+      if (counts[r.fromPersonId] !== undefined) counts[r.fromPersonId]++;
+      if (counts[r.toPersonId] !== undefined) counts[r.toPersonId]++;
+    }
+    return counts;
+  }, [state.persons, state.relationships]);
 
   // Measure container
   useEffect(() => {
@@ -62,6 +90,33 @@ export function SkyCanvas() {
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  // Wheel zoom handler
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    function handleWheel(e: WheelEvent) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+      setZoom((prev) => {
+        const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + delta));
+        // Zoom toward cursor position
+        const rect = el!.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const scale = next / prev;
+        setPan((p) => ({
+          x: cx - scale * (cx - p.x),
+          y: cy - scale * (cy - p.y),
+        }));
+        return next;
+      });
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
   // D3 force simulation
@@ -97,11 +152,10 @@ export function SkyCanvas() {
         'link',
         forceLink<NodeDatum, LinkDatum>(links)
           .id((d) => d.id)
-          .distance(100),
+          .distance(200),
       )
-      .force('charge', forceManyBody().strength(-200))
-      .force('collide', forceCollide(30))
-      // Moiety regions: push nodes toward their moiety's half
+      .force('charge', forceManyBody().strength(-400))
+      .force('collide', forceCollide(100))
       .force(
         'moietyX',
         forceX<NodeDatum>((d) => {
@@ -118,10 +172,9 @@ export function SkyCanvas() {
     sim.on('tick', () => {
       const pos: Record<string, { x: number; y: number }> = {};
       for (const node of nodes) {
-        // Clamp to canvas bounds
-        const r = 20;
-        node.x = Math.max(r, Math.min(width - r, node.x ?? width / 2));
-        node.y = Math.max(r + 40, Math.min(height - r - 20, node.y ?? height / 2));
+        const margin = 100;
+        node.x = Math.max(margin, Math.min(width - margin, node.x ?? width / 2));
+        node.y = Math.max(margin, Math.min(height - margin, node.y ?? height / 2));
         pos[node.id] = { x: node.x, y: node.y };
       }
       setNodePositions({ ...pos });
@@ -135,7 +188,15 @@ export function SkyCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dimensions, state.persons.length, state.relationships.length, moietyNames]);
 
-  // Drag handlers
+  // Convert screen coordinates to world coordinates
+  const screenToWorld = useCallback((screenX: number, screenY: number) => {
+    return {
+      x: (screenX - pan.x) / zoom,
+      y: (screenY - pan.y) / zoom,
+    };
+  }, [pan, zoom]);
+
+  // Drag handlers (adjusted for zoom/pan)
   const handleDragStart = useCallback(
     (personId: string) => (e: React.MouseEvent | React.TouchEvent) => {
       e.stopPropagation();
@@ -145,25 +206,41 @@ export function SkyCanvas() {
 
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-      dragOffset.current = { x: clientX - pos.x, y: clientY - pos.y };
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const world = screenToWorld(clientX - rect.left, clientY - rect.top);
+      dragOffset.current = { x: world.x - pos.x, y: world.y - pos.y };
     },
-    [nodePositions],
+    [nodePositions, screenToWorld],
   );
 
   const handleDragMove = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
-      if (!dragging) return;
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-      const newX = clientX - dragOffset.current.x;
-      const newY = clientY - dragOffset.current.y;
+
+      // Pan with middle mouse or when not dragging a node
+      if (panning) {
+        setPan({
+          x: panStart.current.panX + (clientX - panStart.current.x),
+          y: panStart.current.panY + (clientY - panStart.current.y),
+        });
+        return;
+      }
+
+      if (!dragging) return;
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const world = screenToWorld(clientX - rect.left, clientY - rect.top);
+      const newX = world.x - dragOffset.current.x;
+      const newY = world.y - dragOffset.current.y;
 
       setNodePositions((prev) => ({
         ...prev,
         [dragging]: { x: newX, y: newY },
       }));
 
-      // Update simulation node position
       if (simulationRef.current) {
         const node = simulationRef.current.nodes().find((n) => n.id === dragging);
         if (node) {
@@ -173,12 +250,15 @@ export function SkyCanvas() {
         }
       }
     },
-    [dragging],
+    [dragging, panning, screenToWorld],
   );
 
   const handleDragEnd = useCallback(() => {
+    if (panning) {
+      setPanning(false);
+      return;
+    }
     if (!dragging) return;
-    // Release fixed position
     if (simulationRef.current) {
       const node = simulationRef.current.nodes().find((n) => n.id === dragging);
       if (node) {
@@ -187,15 +267,38 @@ export function SkyCanvas() {
       }
     }
     setDragging(null);
-  }, [dragging]);
+  }, [dragging, panning]);
 
-  const handleStarClick = useCallback((personId: string) => {
+  // Pan on left-click drag on empty canvas (nodes call stopPropagation, so this only fires on empty space)
+  const handleCanvasMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Left-click (0) or middle-click (1) on empty area → pan
+      if (e.button === 0 || e.button === 1) {
+        e.preventDefault();
+        setPanning(true);
+        panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+      }
+    },
+    [pan],
+  );
+
+  const handleSunClick = useCallback((personId: string) => {
     setActivePersonId(personId);
+    setPersonPanelFocus(undefined);
     setActivePanel('person');
   }, []);
 
+  const handlePlanetClick = useCallback((personId: string, action: 'identity' | 'stories' | 'media') => {
+    setActivePersonId(personId);
+    if (action === 'stories' || action === 'media') {
+      setActivePanel('story');
+    } else {
+      setPersonPanelFocus(action);
+      setActivePanel('person');
+    }
+  }, []);
+
   const handleAddPerson = useCallback(() => {
-    setActivePersonId(null);
     setActivePanel('addPerson');
   }, []);
 
@@ -212,16 +315,26 @@ export function SkyCanvas() {
   const handleClosePanel = useCallback(() => {
     setActivePanel(null);
     setActivePersonId(null);
+    setPersonPanelFocus(undefined);
   }, []);
 
   const activePerson = activePersonId
     ? state.persons.find((p) => p.id === activePersonId) ?? null
     : null;
 
-  // Get all stories for the river panel
   const allStories = state.persons.flatMap((p) =>
     p.stories.map((s) => ({ ...s, personName: p.displayName, personId: p.id })),
   );
+
+  function isPersonDimmed(person: Person): boolean {
+    if (!filterSeasonId) return false;
+    return !person.stories.some((s) => s.seasonTag === filterSeasonId);
+  }
+
+  // Zoom controls
+  const zoomIn = useCallback(() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.15)), []);
+  const zoomOut = useCallback(() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.15)), []);
+  const zoomReset = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
 
   return (
     <div
@@ -230,8 +343,10 @@ export function SkyCanvas() {
       onMouseMove={handleDragMove}
       onMouseUp={handleDragEnd}
       onMouseLeave={handleDragEnd}
+      onMouseDown={handleCanvasMouseDown}
       onTouchMove={handleDragMove}
       onTouchEnd={handleDragEnd}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {/* Layer 1: Seasonal ambient background */}
       <SeasonalAmbient />
@@ -251,84 +366,150 @@ export function SkyCanvas() {
           </filter>
         </defs>
 
-        {/* Moiety sky regions */}
+        {/* Background layers — always fill viewport, not affected by zoom */}
         <MoietyRegions
           width={dimensions.width}
           height={dimensions.height}
           moietyNames={moietyNames}
         />
-
-        {/* Milky Way band */}
         <MilkyWay
           width={dimensions.width}
           height={dimensions.height}
           onClick={() => setActivePanel('river')}
         />
 
-        {/* Constellation lines */}
-        {state.relationships.map((rel) => {
-          const fromPos = nodePositions[rel.fromPersonId];
-          const toPos = nodePositions[rel.toPersonId];
-          if (!fromPos || !toPos) return null;
-          return (
-            <ConstellationLine
-              key={rel.id}
-              x1={fromPos.x}
-              y1={fromPos.y}
-              x2={toPos.x}
-              y2={toPos.y}
-              relationshipType={rel.relationshipType}
-              isAvoidance={rel.isAvoidance}
-            />
-          );
-        })}
+        {/* Zoom/Pan transform group — only interactive content */}
+        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          {/* Constellation lines */}
+          {state.relationships.map((rel) => {
+            const fromPos = nodePositions[rel.fromPersonId];
+            const toPos = nodePositions[rel.toPersonId];
+            if (!fromPos || !toPos) return null;
+            return (
+              <ConstellationLine
+                key={rel.id}
+                x1={fromPos.x}
+                y1={fromPos.y}
+                x2={toPos.x}
+                y2={toPos.y}
+                relationshipType={rel.relationshipType}
+                isAvoidance={rel.isAvoidance}
+              />
+            );
+          })}
 
-        {/* Star nodes */}
-        {state.persons.map((person) => {
-          const pos = nodePositions[person.id];
-          if (!pos) return null;
-          return (
-            <StarNode
-              key={person.id}
-              person={person}
-              x={pos.x}
-              y={pos.y}
-              currentSeasonId={state.currentSeasonId}
-              moietyNames={moietyNames}
-              onClick={() => handleStarClick(person.id)}
-              onDragStart={handleDragStart(person.id)}
-            />
-          );
-        })}
+          {/* Solar system nodes */}
+          {state.persons.map((person) => {
+            const pos = nodePositions[person.id];
+            if (!pos) return null;
+            return (
+              <SolarSystemNode
+                key={person.id}
+                person={person}
+                x={pos.x}
+                y={pos.y}
+                currentSeasonId={state.currentSeasonId}
+                moietyNames={moietyNames}
+                seasonalCalendar={state.seasonalCalendar}
+                connectionCount={connectionCounts[person.id] ?? 0}
+                zoom={zoom}
+                dimmed={isPersonDimmed(person)}
+                onSunClick={() => handleSunClick(person.id)}
+                onPlanetClick={(action) => handlePlanetClick(person.id, action)}
+                onDragStart={handleDragStart(person.id)}
+              />
+            );
+          })}
+        </g>
       </svg>
 
       {/* Season indicator */}
       <SeasonIndicator />
 
-      {/* Add person FAB */}
-      <button
-        onClick={handleAddPerson}
-        className="absolute bottom-4 right-4 z-20 w-12 h-12 rounded-full
-          bg-white/[0.08] border border-white/[0.1] backdrop-blur-sm
-          hover:bg-white/[0.14] transition-all duration-200
-          flex items-center justify-center group"
-        aria-label="Add person"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
-          className="text-white/60 group-hover:text-white/90 transition-colors"
+      {/* Season wheel (bottom-left) */}
+      <SeasonWheel
+        activeSeasonFilter={filterSeasonId}
+        onSeasonClick={setFilterSeasonId}
+      />
+
+      {/* Zoom controls (bottom-left, above season wheel) */}
+      <div className="absolute bottom-48 left-4 z-20 flex flex-col gap-1.5">
+        <button
+          onClick={zoomIn}
+          className="w-9 h-9 rounded-lg bg-white/[0.08] border border-white/[0.1]
+            hover:bg-white/[0.15] transition-all flex items-center justify-center"
+          aria-label="Zoom in"
         >
-          <path
-            d="M10 4v12M4 10h12"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
+          <span className="text-white/70 text-lg font-light leading-none">+</span>
+        </button>
+        <button
+          onClick={zoomReset}
+          className="w-9 h-9 rounded-lg bg-white/[0.08] border border-white/[0.1]
+            hover:bg-white/[0.15] transition-all flex items-center justify-center"
+          aria-label="Reset zoom"
+        >
+          <span className="text-white/50 text-[10px] font-medium leading-none">{Math.round(zoom * 100)}%</span>
+        </button>
+        <button
+          onClick={zoomOut}
+          className="w-9 h-9 rounded-lg bg-white/[0.08] border border-white/[0.1]
+            hover:bg-white/[0.15] transition-all flex items-center justify-center"
+          aria-label="Zoom out"
+        >
+          <span className="text-white/70 text-lg font-light leading-none">&minus;</span>
+        </button>
+      </div>
+
+      {/* Bottom toolbar */}
+      <div className="absolute bottom-4 right-4 z-20 flex gap-2">
+        {/* Timeline button */}
+        <button
+          onClick={() => setActivePanel('timeline')}
+          className="w-12 h-12 rounded-full
+            bg-white/[0.08] border border-white/[0.1] backdrop-blur-sm
+            hover:bg-white/[0.14] transition-all duration-200
+            flex items-center justify-center group"
+          aria-label="Timeline"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            className="text-white/60 group-hover:text-white/90 transition-colors"
+          >
+            <line x1="3" y1="9" x2="15" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="5" cy="9" r="1.5" fill="currentColor" />
+            <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+            <circle cx="13" cy="9" r="1.5" fill="currentColor" />
+          </svg>
+        </button>
+
+        {/* Add person FAB */}
+        <button
+          onClick={handleAddPerson}
+          className="w-12 h-12 rounded-full
+            bg-white/[0.08] border border-white/[0.1] backdrop-blur-sm
+            hover:bg-white/[0.14] transition-all duration-200
+            flex items-center justify-center group"
+          aria-label="Add person"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            className="text-white/60 group-hover:text-white/90 transition-colors"
+          >
+            <path
+              d="M10 4v12M4 10h12"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
 
       {/* Settings / change region */}
       <button
@@ -338,8 +519,8 @@ export function SkyCanvas() {
           }
         }}
         className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-lg
-          bg-white/[0.04] border border-white/[0.06] text-white/30 text-xs
-          hover:text-white/50 hover:bg-white/[0.06] transition-all"
+          bg-white/[0.04] border border-white/[0.06] text-white/50 text-xs
+          hover:text-white/70 hover:bg-white/[0.06] transition-all"
       >
         {state.seasonalCalendar?.languageGroup ?? 'Settings'}
       </button>
@@ -348,11 +529,11 @@ export function SkyCanvas() {
       {state.persons.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
           <div className="text-center animate-fade-in">
-            <div className="w-3 h-3 rounded-full bg-white/20 mx-auto mb-4 animate-star-pulse" />
-            <p className="text-white/25 text-sm">
+            <div className="w-4 h-4 rounded-full bg-white/30 mx-auto mb-4 animate-star-pulse" />
+            <p className="text-white/40 text-sm">
               The sky is waiting for your family&apos;s stars.
             </p>
-            <p className="text-white/15 text-xs mt-1">
+            <p className="text-white/25 text-xs mt-1">
               Tap + to add the first person.
             </p>
           </div>
@@ -360,9 +541,13 @@ export function SkyCanvas() {
       )}
 
       {/* Panels */}
-      {(activePanel === 'person' || activePanel === 'addPerson') && (
+      {activePanel === 'addPerson' && (
+        <QuickAddModal onClose={handleClosePanel} />
+      )}
+      {activePanel === 'person' && activePerson && (
         <PersonPanel
           person={activePerson}
+          focusSection={personPanelFocus}
           onClose={handleClosePanel}
           onAddStory={(personId) => handleOpenStoryPanel(personId)}
           onAddConnection={(personId) => handleOpenConnectionPanel(personId)}
@@ -388,7 +573,13 @@ export function SkyCanvas() {
         <StoriesRiverPanel
           stories={allStories}
           onClose={handleClosePanel}
-          onPersonClick={(personId) => handleStarClick(personId)}
+          onPersonClick={(personId) => handleSunClick(personId)}
+        />
+      )}
+      {activePanel === 'timeline' && (
+        <TimelinePanel
+          onClose={handleClosePanel}
+          onStoryClick={(personId) => handleSunClick(personId)}
         />
       )}
     </div>

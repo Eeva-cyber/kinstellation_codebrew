@@ -14,12 +14,15 @@ These are not separate features. They are the same system viewed from different 
 
 ## Key design principles
 
-- **Stars = people.** Brightness and size are proportional to story count. Unstudied stars fade (decay mechanic based on `lastUpdated`).
-- **Constellations = families.** Relationship lines are organic and non-hierarchical, not Western top-down trees. Line style encodes relationship type (solid = direct, dashed = classificatory, dotted red = avoidance).
+- **Solar systems = people.** Each person is a sun with orbiting planets representing their attributes (skin name, birth, stories, media). Sun brightness and size scale with story count AND connection count. Unstudied stars fade (decay mechanic based on `lastUpdated`).
+- **Galaxies = families.** Connected solar systems form a galaxy. Relationship lines are organic and non-hierarchical, not Western top-down trees. Line style encodes relationship type (solid = direct, dashed = classificatory, dotted red = avoidance).
 - **Moieties = sky regions.** Canvas is split into two halves reflecting the moiety system. D3 force simulation pushes nodes toward their moiety's region.
 - **Milky Way = river of stories.** A luminous diagonal band across the canvas. Clicking it opens the Stories River panel showing all stories.
-- **Dark constellations (negative space).** Empty areas represent missing knowledge. Stars with no stories or connections show a dashed outline — knowledge waiting to be discovered. Essential sensitivity for Stolen Generations families.
+- **Dark constellations (negative space).** Empty areas represent missing knowledge. Solar systems with no stories or connections show dashed orbit rings — knowledge waiting to be discovered. Essential sensitivity for Stolen Generations families.
+- **Zoom-reveal detail.** Zooming in (≥1.3x) reveals planet labels (skin name, story titles, media count, connection count). Zooming out hides them for a clean overview. Scroll wheel zooms, drag pans.
 - **Season picker, not date picker.** Story creation uses a season-based temporal input. Users can select "unsure" and assign later.
+- **Season wheel filter.** A circular season wheel in the bottom-left corner lets users filter the canvas by season — non-matching solar systems dim.
+- **Timeline panel.** A bottom-slide panel shows all stories distributed across seasonal columns.
 - **"I'm not sure" path.** Never make users feel inadequate. Onboarding offers a generic fallback for both kinship and seasonal knowledge.
 
 ## Tech stack
@@ -40,15 +43,18 @@ app/
   canvas/page.tsx     — Main sky canvas
 
 lib/
-  types.ts            — All TypeScript types
+  types.ts            — All TypeScript types (Person, Relationship, Story with optional year, etc.)
   data/               — Seasonal calendars, kinship templates, region configs (static JSON)
   store/AppContext.tsx — React Context + useReducer, persists to localStorage
   utils/season.ts     — Season detection, star radius/opacity calculations
 
 components/
-  canvas/             — SkyCanvas, StarNode, ConstellationLine, MilkyWay, MoietyRegions,
-                        SeasonalAmbient, SeasonIndicator, StarFieldBg
-  panels/             — PersonPanel, StoryPanel, AddConnectionPanel, StoriesRiverPanel
+  canvas/             — SkyCanvas (zoom/pan/D3 force), SolarSystemNode (sun + orbit planets),
+                        ConstellationLine, MilkyWay, MoietyRegions, SeasonalAmbient,
+                        SeasonIndicator, SeasonWheel, StarFieldBg
+  panels/             — PersonPanel (collapsible sections, inline quick-story form),
+                        QuickAddModal (2-field centered add), StoryPanel, AddConnectionPanel,
+                        StoriesRiverPanel, TimelinePanel (season-column story distribution)
   onboarding/         — RegionSelector
   ui/                 — SeasonPicker
 ```
@@ -57,7 +63,7 @@ components/
 
 - **Person** — id, displayName, indigenousName, skinName, moiety, stories[], visibility, lastUpdated, position (x/y)
 - **Relationship** — fromPersonId, toPersonId, relationshipType (12 types including classificatory), isAvoidance
-- **Story** — title, type (text/photo), content, seasonTag (required), seasonalContext, visibility
+- **Story** — title, type (text/photo/audio/video), content, seasonTag (required), year (optional), seasonalContext, visibility
 - **SeasonalCalendar** — seasons[] each with name, approximateMonths, colorPalette, celestialIndicators
 - **KinshipTemplate** — templateType, moietyNames, sectionNames, genderedPrefixes
 

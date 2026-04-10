@@ -31,6 +31,7 @@ export interface Story {
   recordedBy: string;
   recordedDate: string;
   seasonTag: string; // season id or 'unsure'
+  year?: number; // optional year for chronological ordering
   seasonalContext?: string;
   placeConnection?: string;
   visibility: Visibility;
