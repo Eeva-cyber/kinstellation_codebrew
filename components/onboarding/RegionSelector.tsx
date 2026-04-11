@@ -1047,25 +1047,32 @@ function AccountCreationOverlay({
   const [passFocused,     setPassFocused]     = useState(false);
   const [confirmFocused,  setConfirmFocused]  = useState(false);
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!username.trim()) { setError('Please choose a username.'); return; }
     if (username.trim().length < 3) { setError('Username must be at least 3 characters.'); return; }
     if (!password) { setError('Please set a password.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     if (password !== confirmPassword) { setError("Passwords don't match."); return; }
 
-    // Store credentials locally — no Supabase auth call during frontend prototype phase.
-    // Email-based auth is bypassed; username + password are stored in localStorage only.
-    const existing = localStorage.getItem('kinstellation_account');
-    if (existing) {
-      try {
-        const acc = JSON.parse(existing);
-        if (acc.username === username.trim().toLowerCase()) {
-          setError('That username is taken. Try another.');
-          return;
-        }
-      } catch { /* corrupt data, overwrite */ }
+    setLoading(true);
+    setError('');
+
+    // Create a real Supabase session using a synthetic email so the middleware
+    // can authenticate the user on /canvas. Email confirmation must be OFF in Supabase.
+    const email = `${username.trim().toLowerCase()}@kinstellation.app`;
+    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+
+    if (signUpError) {
+      const msg = signUpError.message.toLowerCase();
+      if (msg.includes('already registered') || msg.includes('user already exists')) {
+        setError('That username is taken. Try another.');
+      } else {
+        setError(signUpError.message);
+      }
+      setLoading(false);
+      return;
     }
+
     localStorage.setItem('kinstellation_account', JSON.stringify({
       username: username.trim().toLowerCase(),
       created: new Date().toISOString(),
