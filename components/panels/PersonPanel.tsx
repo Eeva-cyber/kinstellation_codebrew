@@ -5,6 +5,7 @@ import { useApp } from '@/lib/store/AppContext';
 import type { Person, Visibility, Story, StoryType } from '@/lib/types';
 import { SeasonPicker } from '@/components/ui/SeasonPicker';
 import { WordTooltip } from '@/components/ui/WordTooltip';
+import { regions } from '@/lib/data/regions';
 
 interface PersonPanelProps {
   person: Person;
@@ -22,10 +23,10 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [displayName, setDisplayName] = useState(person.displayName);
-
   const [indigenousName, setIndigenousName] = useState(person.indigenousName ?? '');
   const [skinName, setSkinName] = useState(person.skinName ?? '');
   const [moiety, setMoiety] = useState(person.moiety ?? '');
+  const [mob, setMob] = useState(person.mob ?? '');
   const [countryLanguageGroup, setCountryLanguageGroup] = useState(person.countryLanguageGroup ?? '');
   const [isDeceased, setIsDeceased] = useState(person.isDeceased);
   const [visibility, setVisibility] = useState<Visibility>(person.visibility);
@@ -84,6 +85,7 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
         indigenousName: indigenousName.trim() || undefined,
         skinName: skinName.trim() || undefined,
         moiety: moiety || undefined,
+        mob: mob.trim() || undefined,
         countryLanguageGroup: countryLanguageGroup.trim() || undefined,
         isDeceased,
         visibility,
@@ -121,12 +123,7 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
   }
 
   return (
-    <div
-      className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto"
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
       <div
         ref={scrollRef}
         className="h-full backdrop-blur-xl panel-scroll"
@@ -217,7 +214,8 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
                 </div>
               )}
 
-              <Field label="Country / Language group" value={countryLanguageGroup} onChange={setCountryLanguageGroup} placeholder="e.g. Warlpiri, Noongar" />
+              <LanguageGroupCombobox value={mob} onChange={setMob} />
+              <Field label="Country / Language group" value={countryLanguageGroup} onChange={setCountryLanguageGroup} placeholder="e.g. Noongar Country, Arnhem Land" />
 
               <label className="flex items-center gap-2 text-xs text-white/40 cursor-pointer">
                 <input
@@ -511,6 +509,145 @@ function Field({
         placeholder={placeholder}
         className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
       />
+    </div>
+  );
+}
+
+// ─── Language / Country group combobox ───────────────────────────────────────
+// Builds a flat list from the regions data: displayName + alternateNames, grouped by state.
+const LANGUAGE_OPTIONS: { label: string; state: string; alternates: string[] }[] = regions
+  .filter((r) => r.id !== 'not_listed')
+  .map((r) => ({ label: r.displayName, state: r.stateTerritory, alternates: r.alternateNames ?? [] }));
+
+function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Keep search input in sync when parent value changes externally
+  useEffect(() => { setSearch(value); }, [value]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = search.trim()
+    ? LANGUAGE_OPTIONS.filter(
+        (o) =>
+          o.label.toLowerCase().includes(search.toLowerCase()) ||
+          o.alternates.some((a) => a.toLowerCase().includes(search.toLowerCase())),
+      )
+    : LANGUAGE_OPTIONS;
+
+  const hasExactMatch = LANGUAGE_OPTIONS.some(
+    (o) => o.label.toLowerCase() === search.trim().toLowerCase(),
+  );
+
+  function select(label: string) {
+    onChange(label);
+    setSearch(label);
+    setOpen(false);
+  }
+
+  // Group filtered results by state
+  const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, o) => {
+    const key = o.state || 'Other';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(o);
+    return acc;
+  }, {});
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-xs text-white/35 mb-1.5">Mob / Language group</label>
+      <div className="relative">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search or type your own…"
+          className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 pr-8 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
+        />
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-70 transition-opacity"
+          tabIndex={-1}
+          aria-label="Toggle list"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+            <path d="M2 3.5l3 3 3-3" stroke="rgba(139,92,246,0.9)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      {open && (
+        <div
+          className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-[70]"
+          style={{
+            background: 'rgba(8,4,22,0.98)',
+            border: '1px solid rgba(88,28,135,0.4)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            maxHeight: 220,
+            overflowY: 'auto',
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(139,92,246,0.3) transparent',
+          }}
+        >
+          {/* Custom entry option if no exact match */}
+          {search.trim() && !hasExactMatch && (
+            <button
+              type="button"
+              onClick={() => select(search.trim())}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] border-b"
+              style={{ color: 'rgba(212,164,84,0.85)', borderColor: 'rgba(88,28,135,0.25)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(88,28,135,0.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <span style={{ color: 'rgba(212,164,84,0.45)' }}>+</span>
+              Use &quot;{search.trim()}&quot;
+            </button>
+          )}
+
+          {filtered.length === 0 && !search.trim() && (
+            <p className="px-3 py-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>Start typing to search…</p>
+          )}
+
+          {Object.entries(grouped).map(([state, opts]) => (
+            <div key={state}>
+              <div className="px-3 py-1 sticky top-0" style={{ background: 'rgba(8,4,22,0.95)', color: 'rgba(139,92,246,0.5)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                {state}
+              </div>
+              {opts.map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  onClick={() => select(o.label)}
+                  className="w-full text-left px-3 py-2 text-[12px] transition-all"
+                  style={{
+                    color: value === o.label ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.65)',
+                    background: value === o.label ? 'rgba(88,28,135,0.4)' : 'transparent',
+                  }}
+                  onMouseEnter={(e) => { if (value !== o.label) e.currentTarget.style.background = 'rgba(88,28,135,0.2)'; }}
+                  onMouseLeave={(e) => { if (value !== o.label) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <span>{o.label}</span>
+                  {o.alternates.length > 0 && (
+                    <span className="ml-1.5 text-[10px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
+                      ({o.alternates.slice(0, 2).join(', ')}{o.alternates.length > 2 ? '…' : ''})
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

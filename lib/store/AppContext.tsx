@@ -354,9 +354,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // --- Load data from Supabase when user is authenticated ---
   useEffect(() => {
     if (!user) {
+      // Still load seasonal calendar from localStorage even without auth (dev bypass)
+      const savedRegion = localStorage.getItem(REGION_KEY);
+      let seasonalCalendar = null;
+      let kinshipTemplate = null;
+      let currentSeasonId = null;
+      if (savedRegion) {
+        const region = regions.find((r) => r.id === savedRegion);
+        if (region) {
+          seasonalCalendar = allCalendars[region.calendarId];
+          kinshipTemplate = kinshipTemplates[region.kinshipTemplateType];
+          currentSeasonId = getCurrentSeason(seasonalCalendar)?.id ?? null;
+        }
+      }
       localDispatch({
         type: 'INIT',
-        payload: { ...initialState, initialized: true },
+        payload: { ...initialState, initialized: true, selectedRegion: savedRegion, seasonalCalendar, kinshipTemplate, currentSeasonId },
       });
       return;
     }

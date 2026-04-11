@@ -50,6 +50,7 @@ export interface Person {
   totemFamily?: string;
   totemClan?: string;
   totemNation?: string;
+  mob?: string;
   countryLanguageGroup?: string;
   regionSelectorValue: string;
   isDeceased: boolean;
@@ -57,7 +58,7 @@ export interface Person {
   visibility: Visibility;
   lastUpdated: string; // ISO date
   position: { x: number; y: number };
-  isGuest?: boolean; // true for connected users' stars loaded via invite system
+  isGuest?: boolean;
 }
 
 export interface Relationship {

@@ -12,7 +12,7 @@ import {
   type SimulationLinkDatum,
 } from 'd3';
 import { useApp } from '@/lib/store/AppContext';
-import { getStarRadius, getSeasonById } from '@/lib/utils/season';
+import { getSeasonById } from '@/lib/utils/season';
 import { StarFieldBg } from './StarFieldBg';
 import { GalaxyShapes } from './GalaxyShapes';
 import { MilkyWay } from './MilkyWay';
@@ -69,6 +69,14 @@ export function SkyCanvas() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteOverlay, setShowInviteOverlay] = useState(false);
+  const pendingCenterId = useRef<string | null>(null);
+
+  // Refs that always hold the latest state — used by event handlers that can't be re-registered
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const activePersonIdRef = useRef<string | null>(null);
+  const activePanelRef = useRef<PanelType>(null);
+  const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
   function toggleSeasonFilter(id: string) {
     setFilterSeasonIds((prev) =>
@@ -81,6 +89,13 @@ export function SkyCanvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+
+  // Keep refs in sync with latest state (used by wheel handler without re-registering)
+  zoomRef.current = zoom;
+  panRef.current = pan;
+  activePersonIdRef.current = activePersonId;
+  activePanelRef.current = activePanel;
+  nodePositionsRef.current = nodePositions;
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
@@ -182,35 +197,80 @@ export function SkyCanvas() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // Wheel zoom handler
+  // Helper: get the screen pivot point — either the active star or a given screen coord
+  function getZoomPivot(fallbackX: number, fallbackY: number): { cx: number; cy: number } {
+    const pid = activePersonIdRef.current;
+    const panel = activePanelRef.current;
+    if (pid && panel === 'person') {
+      const pos = nodePositionsRef.current[pid];
+      if (pos) {
+        // Convert world coords to current screen coords
+        return {
+          cx: pos.x * zoomRef.current + panRef.current.x,
+          cy: pos.y * zoomRef.current + panRef.current.y,
+        };
+      }
+    }
+    return { cx: fallbackX, cy: fallbackY };
+  }
+
+  // Wheel zoom/pan handler — platform-aware
+  // • ctrlKey=true  → pinch gesture (macOS/Windows trackpad) OR Ctrl+scroll → ZOOM
+  // • deltaMode=1   → mouse wheel line scroll → ZOOM
+  // • deltaMode=0 no ctrlKey → trackpad two-finger scroll → PAN
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     function handleWheel(e: WheelEvent) {
-      e.preventDefault();
-      // Flash zoom controls on screen
-      setZoomVisible(true);
-      if (zoomHideTimer.current) clearTimeout(zoomHideTimer.current);
-      zoomHideTimer.current = setTimeout(() => setZoomVisible(false), 2000);
+      // If the scroll originated inside a panel scrollable area, let the
+      // browser handle it normally so the panel can scroll its own content.
+      const target = e.target as Element | null;
+      if (target) {
+        const scrollable = target.closest(
+          '.panel-scroll, .panel-scroll-x, .panel-scroll-col, [data-panel-scroll]',
+        );
+        if (scrollable) return; // don't preventDefault — let panel scroll naturally
+      }
 
-      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-      setZoom((prev) => {
+      e.preventDefault();
+
+      const isZoomIntent = e.ctrlKey || e.metaKey || e.deltaMode === 1;
+
+      if (isZoomIntent) {
+        // ── Zoom ──────────────────────────────────────────────────────────────
+        setZoomVisible(true);
+        if (zoomHideTimer.current) clearTimeout(zoomHideTimer.current);
+        zoomHideTimer.current = setTimeout(() => setZoomVisible(false), 2000);
+
+        const prev = zoomRef.current;
+        // Pinch gesture sends fractional ctrlKey-deltas; mouse wheel sends larger chunks
+        const step = e.ctrlKey ? ZOOM_STEP * 0.6 : ZOOM_STEP;
+        const delta = e.deltaY > 0 ? -step : step;
         const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + delta));
-        const rect = el!.getBoundingClientRect();
-        const cx = e.clientX - rect.left;
-        const cy = e.clientY - rect.top;
         const scale = next / prev;
+
+        const rect = el!.getBoundingClientRect();
+        const cursorX = e.clientX - rect.left;
+        const cursorY = e.clientY - rect.top;
+        const { cx, cy } = getZoomPivot(cursorX, cursorY);
+
         setPan((p) => ({
           x: cx - scale * (cx - p.x),
           y: cy - scale * (cy - p.y),
         }));
-        return next;
-      });
+        setZoom(next);
+      } else {
+        // ── Pan (trackpad two-finger scroll) ──────────────────────────────────
+        const dx = e.deltaX ?? 0;
+        const dy = e.deltaY ?? 0;
+        setPan((p) => ({ x: p.x - dx, y: p.y - dy }));
+      }
     }
 
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // AI impact scoring — run for any unscored story
@@ -412,10 +472,8 @@ export function SkyCanvas() {
     setActivePersonId(personId);
     setPersonPanelFocus(undefined);
     setActivePanel('person');
-    // Smoothly center canvas on the clicked star
-    centerOnPerson(personId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, nodePositions]);
+    pendingCenterId.current = personId;
+  }, []);
 
   const handlePlanetClick = useCallback((personId: string, action: 'identity' | 'stories' | 'media') => {
     setActivePersonId(personId);
@@ -473,16 +531,41 @@ export function SkyCanvas() {
     return false;
   }
 
-  function centerOnPerson(personId: string) {
+  // Center on a person — accounts for the 22rem side panel when it's open
+  function centerOnPerson(personId: string, withPanel = false) {
     const pos = nodePositions[personId];
     if (!pos || !containerRef.current) return;
     const { clientWidth: w, clientHeight: h } = containerRef.current;
-    setPan({ x: w / 2 - pos.x * zoom, y: h / 2 - pos.y * zoom });
+    const PANEL_W = withPanel ? 352 : 0;
+    setPan({ x: (w - PANEL_W) / 2 - pos.x * zoom, y: h / 2 - pos.y * zoom });
   }
 
-  // Zoom controls
-  const zoomIn = useCallback(() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.15)), []);
-  const zoomOut = useCallback(() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.15)), []);
+  // Fire deferred centering after panel opens (pendingCenterId set by handleSunClick)
+  useEffect(() => {
+    const id = pendingCenterId.current;
+    if (!id) return;
+    pendingCenterId.current = null;
+    centerOnPerson(id, true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePersonId, activePanel, nodePositions]);
+
+  // Zoom controls — pivot on the active star when one is centered, else screen centre
+  function applyZoomStep(step: number) {
+    const prev = zoomRef.current;
+    const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + step));
+    const scale = next / prev;
+    const el = containerRef.current;
+    const fallbackX = el ? el.clientWidth / 2 : 0;
+    const fallbackY = el ? el.clientHeight / 2 : 0;
+    const { cx, cy } = getZoomPivot(fallbackX, fallbackY);
+    setPan((p) => ({
+      x: cx - scale * (cx - p.x),
+      y: cy - scale * (cy - p.y),
+    }));
+    setZoom(next);
+  }
+  const zoomIn  = useCallback(() => applyZoomStep(+0.15), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const zoomOut = useCallback(() => applyZoomStep(-0.15), []); // eslint-disable-line react-hooks/exhaustive-deps
   const zoomReset = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
 
   return (
@@ -549,59 +632,6 @@ export function SkyCanvas() {
 
         {/* Zoom/Pan transform group — only interactive content */}
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {/* Story satellite stars — each story orbits its person star as a smaller star.
-              Impact score (1–10) pulls high-impact stories closer to the person. */}
-          {state.persons.map((person) => {
-            const pos = nodePositions[person.id];
-            if (!pos || person.stories.length === 0) return null;
-            const storyCount = person.stories.length;
-            const personRadius = getStarRadius(storyCount);
-            const chainOpacity = Math.min(0.15 + storyCount * 0.07, 0.65);
-
-            return person.stories.map((story, i) => {
-              const impact = impactScores[story.id] ?? null;
-              const orbitRadius =
-                impact !== null
-                  ? personRadius + 8 + (10 - impact) * 2.6
-                  : personRadius + 22;
-
-              const angle = (i / storyCount) * Math.PI * 2 - Math.PI / 2;
-              const sx = pos.x + Math.cos(angle) * orbitRadius;
-              const sy = pos.y + Math.sin(angle) * orbitRadius;
-
-              let storyColor = 'rgba(255,255,255,0.9)';
-              if (state.seasonalCalendar && story.seasonTag !== 'unsure') {
-                const season = getSeasonById(state.seasonalCalendar, story.seasonTag);
-                if (season) storyColor = season.colorPalette.accentColor;
-              }
-
-              const glowR = impact !== null ? 4 + (impact / 10) * 4 : 5;
-              const bodyR = impact !== null ? 2 + (impact / 10) * 1.5 : 2.5;
-
-              const seasonMatch = filterSeasonIds.length === 0 || filterSeasonIds.includes(story.seasonTag);
-              const effectiveOpacity = filterSeasonIds.length > 0
-                ? (seasonMatch ? Math.min(chainOpacity * 2.0, 1.0) : chainOpacity * 0.08)
-                : chainOpacity;
-
-              return (
-                <g
-                  key={story.id}
-                  className="cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); setActiveStory({ story, personName: person.displayName, personId: person.id }); }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Story: ${story.title}`}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setActiveStory({ story, personName: person.displayName, personId: person.id }); }}
-                >
-                  <circle cx={sx} cy={sy} r={10} fill="transparent" />
-                  <line x1={pos.x} y1={pos.y} x2={sx} y2={sy} stroke="white" strokeOpacity={effectiveOpacity} strokeWidth={0.5} strokeDasharray="1.5 3" strokeLinecap="round" />
-                  <circle cx={sx} cy={sy} r={glowR} fill={storyColor} opacity={effectiveOpacity * 0.18} filter="url(#starGlow)" />
-                  <circle cx={sx} cy={sy} r={bodyR} fill={storyColor} opacity={Math.min(effectiveOpacity * 1.4, 1)} />
-                  <circle cx={sx} cy={sy} r={bodyR * 0.4} fill="white" opacity={Math.min(effectiveOpacity * 1.6, 1)} />
-                </g>
-              );
-            });
-          })}
 
           {/* Constellation lines */}
           {state.relationships.map((rel) => {
@@ -632,7 +662,6 @@ export function SkyCanvas() {
                 x={pos.x}
                 y={pos.y}
                 isSelf={person.id === selfPersonId}
-                isGuest={person.isGuest}
                 currentSeasonId={state.currentSeasonId}
                 moietyNames={moietyNames}
                 seasonalCalendar={state.seasonalCalendar}
@@ -844,6 +873,16 @@ export function SkyCanvas() {
         </div>
       </div>
 
+      {/* Scroll hint — bottom centre, fades after first wheel event */}
+      {state.persons.length > 0 && !zoomVisible && activePanel === null && (
+        <div
+          className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none select-none animate-fade-in"
+          style={{ color: 'rgba(255,255,255,0.18)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}
+        >
+          Scroll to pan · Ctrl + scroll or pinch to zoom · Drag to move stars
+        </div>
+      )}
+
       {/* Settings / change region */}
       <button
         onClick={() => {
@@ -887,8 +926,8 @@ export function SkyCanvas() {
       {activePanel === 'person' && activePerson && (
         <PersonPanel
           person={activePerson}
-          focusSection={personPanelFocus}
           isSelf={activePerson.id === selfPersonId}
+          focusSection={personPanelFocus}
           onClose={handleClosePanel}
           onAddStory={(personId) => handleOpenStoryPanel(personId)}
           onAddConnection={(personId) => handleOpenConnectionPanel(personId)}
