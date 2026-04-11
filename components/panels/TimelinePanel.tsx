@@ -128,7 +128,7 @@ function MultiSelectDropdown({
           </div>
 
           {/* Options */}
-          <div className="max-h-44 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(139,92,246,0.3) transparent' }}>
+          <div className="max-h-44 panel-scroll-col">
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>No results</p>
             ) : (
@@ -383,10 +383,7 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
                   </div>
 
                   {/* Story cards */}
-                  <div
-                    className="flex-1 overflow-y-auto px-3 py-3"
-                    style={{ scrollbarWidth: 'none' }}
-                  >
+                  <div className="flex-1 px-3 py-3 panel-scroll-col">
                     {col.stories.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full gap-2 opacity-20">
                         <div className="w-px h-10" style={{ background: col.color }} />

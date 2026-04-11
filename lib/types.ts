@@ -50,6 +50,7 @@ export interface Person {
   totemFamily?: string;
   totemClan?: string;
   totemNation?: string;
+  mob?: string;
   countryLanguageGroup?: string;
   regionSelectorValue: string;
   isDeceased: boolean;

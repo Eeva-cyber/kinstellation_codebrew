@@ -57,7 +57,7 @@ export function StoryPopup({
   onStoryUpdated,
 }: StoryPopupProps) {
   const { dispatch } = useApp();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
 
   // Edit fields
   const [editTitle, setEditTitle] = useState(story.title);
@@ -112,7 +112,7 @@ export function StoryPopup({
 
       {/* Card */}
       <div
-        className="relative z-10 w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-2xl shadow-2xl animate-fade-in"
+        className="relative z-10 w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-2xl shadow-2xl animate-fade-in panel-scroll"
         style={{
           background: 'rgba(8,4,22,0.98)',
           border: '1px solid rgba(88,28,135,0.45)',
