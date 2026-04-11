@@ -196,9 +196,9 @@ components/
 
 ## Auth & data flow
 
-- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → `supabase.auth.signInAnonymously()`. No email address is involved. Username + password are stored in localStorage (`kinstellation_account { username, pwd: btoa(password), created }`). The anonymous session satisfies the middleware so the user can reach `/canvas`. **Anonymous sign-in must be enabled** in Supabase Auth → Settings → "Allow anonymous sign-ins".
-- **Sign in**: `SignInModal` → validates username + password against `kinstellation_account` in localStorage; if matching, calls `supabase.auth.signInAnonymously()` when no active session exists. Google OAuth and magic-link email also available as alternatives.
-- **Session**: `proxy.ts` (Next.js middleware) calls `supabase.auth.getUser()` on every request to refresh the session cookie and enforce route protection.
+- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → stores `{ username, pwd: btoa(password), created }` in localStorage (`kinstellation_account`). No Supabase call. "Skip for now" goes directly to `/canvas` with no account saved.
+- **Sign in**: `SignInModal` → reads `kinstellation_account` from localStorage, validates username + password locally. No Supabase call. Google OAuth and magic-link are still available as alternatives for users who prefer them.
+- **Route protection**: `proxy.ts` middleware no longer guards `/canvas` — all routes are open, matching local dev behaviour. Supabase session is not required to access any page.
 - **Self-person**: Created by `RegionSelector.handleFinish()` → saved to localStorage (`kinstellation_profile`, `kinstellation_self_id`). `SkyCanvas` reads these on mount and creates the `Person` node if missing.
 - **Tutorial flag**: Set to `'true'` in localStorage (`kinstellation_tutorial_pending`) after successful account creation. `SkyCanvas` reads it on mount; `TutorialOverlay` clears it on completion.
 - **Demo data**: `AppContext` seeds `DEMO_PERSONS` + `DEMO_RELATIONSHIPS` only when both `kinstellation_data` and `kinstellation_self_id` are absent (brand-new browser session).
@@ -214,7 +214,7 @@ components/
 | `kinstellation_self_id` | UUID of the user's own Person node |
 | `kinstellation_region` | Selected region ID |
 | `kinstellation_tutorial_pending` | `'true'` while tutorial hasn't been completed |
-| `kinstellation_account` | `{ username, created }` — local-only account record (no Supabase) |
+| `kinstellation_account` | `{ username, pwd: btoa(password), created }` — local-only account record (no Supabase) |
 
 ## Onboarding profile fields (RegionSelector)
 

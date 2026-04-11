@@ -1047,25 +1047,12 @@ function AccountCreationOverlay({
   const [passFocused,     setPassFocused]     = useState(false);
   const [confirmFocused,  setConfirmFocused]  = useState(false);
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!username.trim()) { setError('Please choose a username.'); return; }
     if (username.trim().length < 3) { setError('Username must be at least 3 characters.'); return; }
     if (!password) { setError('Please set a password.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     if (password !== confirmPassword) { setError("Passwords don't match."); return; }
-
-    setLoading(true);
-    setError('');
-
-    // Use anonymous sign-in so the middleware gets a real session without
-    // requiring any email address from the user.
-    const { error: anonError } = await supabase.auth.signInAnonymously();
-
-    if (anonError) {
-      setError('Could not create account. Please try again.');
-      setLoading(false);
-      return;
-    }
 
     localStorage.setItem('kinstellation_account', JSON.stringify({
       username: username.trim().toLowerCase(),

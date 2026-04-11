@@ -24,12 +24,10 @@ export function SignInModal({ defaultView = 'signin', onClose, onSuccess }: Sign
   const [error, setError]                   = useState('');
   const [loading, setLoading]               = useState(false);
 
-  async function handleSignIn() {
+  function handleSignIn() {
     if (!username.trim() || !password) return;
-    setLoading(true);
     setError('');
 
-    // Validate against locally-stored credentials.
     const raw = localStorage.getItem('kinstellation_account');
     let acc: { username: string; pwd?: string } | null = null;
     try { acc = raw ? JSON.parse(raw) : null; } catch { /* ignore */ }
@@ -37,52 +35,29 @@ export function SignInModal({ defaultView = 'signin', onClose, onSuccess }: Sign
     const storedPwd = acc?.pwd ? atob(acc.pwd) : null;
     if (!acc || acc.username !== username.trim().toLowerCase() || storedPwd !== password) {
       setError('Username or password is incorrect.');
-      setLoading(false);
       return;
     }
 
-    // Credentials match — ensure there is a live Supabase session.
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      const { error: anonError } = await supabase.auth.signInAnonymously();
-      if (anonError) {
-        setError('Sign in failed. Please try again.');
-        setLoading(false);
-        return;
-      }
-    }
-
-    setLoading(false);
     onSuccess?.();
     onClose();
   }
 
-  async function handleSignUp() {
+  function handleSignUp() {
     if (!username.trim() || !password) return;
     if (password !== confirmPassword) { setError('Passwords don\u2019t match.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     if (username.trim().length < 3) { setError('Username must be at least 3 characters.'); return; }
-    setLoading(true);
     setError('');
 
-    // Check username isn't already taken locally.
     const raw = localStorage.getItem('kinstellation_account');
     if (raw) {
       try {
         const acc = JSON.parse(raw);
         if (acc.username === username.trim().toLowerCase()) {
           setError('That username is taken. Try another.');
-          setLoading(false);
           return;
         }
       } catch { /* corrupt — overwrite */ }
-    }
-
-    const { error: anonError } = await supabase.auth.signInAnonymously();
-    if (anonError) {
-      setError('Could not create account. Please try again.');
-      setLoading(false);
-      return;
     }
 
     localStorage.setItem('kinstellation_account', JSON.stringify({
