@@ -1047,32 +1047,30 @@ function AccountCreationOverlay({
   const [passFocused,     setPassFocused]     = useState(false);
   const [confirmFocused,  setConfirmFocused]  = useState(false);
 
-  const syntheticEmail = (u: string) => `${u.toLowerCase().trim()}@kinstellation.app`;
-
-  async function handleCreate() {
+  function handleCreate() {
     if (!username.trim()) { setError('Please choose a username.'); return; }
     if (username.trim().length < 3) { setError('Username must be at least 3 characters.'); return; }
     if (!password) { setError('Please set a password.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
-    if (password !== confirmPassword) { setError('Passwords don\'t match.'); return; }
+    if (password !== confirmPassword) { setError("Passwords don't match."); return; }
 
-    setLoading(true);
-    setError('');
-    const { error } = await supabase.auth.signUp({
-      email: syntheticEmail(username),
-      password,
-    });
-    setLoading(false);
-
-    if (error) {
-      if (error.message.includes('already registered') || error.message.includes('already been registered')) {
-        setError('That username is taken. Try another.');
-      } else {
-        setError(error.message);
-      }
-    } else {
-      onSuccess();
+    // Store credentials locally — no Supabase auth call during frontend prototype phase.
+    // Email-based auth is bypassed; username + password are stored in localStorage only.
+    const existing = localStorage.getItem('kinstellation_account');
+    if (existing) {
+      try {
+        const acc = JSON.parse(existing);
+        if (acc.username === username.trim().toLowerCase()) {
+          setError('That username is taken. Try another.');
+          return;
+        }
+      } catch { /* corrupt data, overwrite */ }
     }
+    localStorage.setItem('kinstellation_account', JSON.stringify({
+      username: username.trim().toLowerCase(),
+      created: new Date().toISOString(),
+    }));
+    onSuccess();
   }
 
   const fieldStyle = (focused: boolean): React.CSSProperties => ({

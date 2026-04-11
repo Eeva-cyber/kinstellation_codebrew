@@ -240,6 +240,10 @@ export function PersonPanel({
   const [confirmDelete, setConfirmDelete]   = useState(false);
   const [savedProfile, setSavedProfile]     = useState(false);
 
+  // AI summariser
+  const [summarizing, setSummarizing]               = useState(false);
+  const [storySummary, setStorySummary]             = useState<string | null>(null);
+
   // Quick story
   const [showQuickStory, setShowQuickStory]         = useState(false);
   const [quickStoryTitle, setQuickStoryTitle]       = useState('');
@@ -595,6 +599,65 @@ export function PersonPanel({
                   )}
                 </div>
               ))}
+
+              {/* AI story summary */}
+              {person.stories.length > 0 && (
+                <div>
+                  {storySummary ? (
+                    <div className="px-4 py-3 rounded-xl relative"
+                      style={{ background: 'rgba(212,164,84,0.06)', border: '1px solid rgba(212,164,84,0.25)' }}>
+                      <button
+                        onClick={() => setStorySummary(null)}
+                        className="absolute top-2.5 right-2.5 text-[11px] leading-none px-1.5 py-0.5 rounded"
+                        style={{ color: 'rgba(212,164,84,0.55)', background: 'rgba(212,164,84,0.08)' }}
+                        title="Dismiss"
+                      >×</button>
+                      <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: 'rgba(212,164,84,0.55)' }}>
+                        ✦ Story summary
+                      </p>
+                      <p className="text-xs leading-relaxed pr-4" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                        {storySummary}
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        setSummarizing(true);
+                        try {
+                          const resp = await fetch('/api/summarize-stories', {
+                            method: 'POST',
+                            headers: { 'content-type': 'application/json' },
+                            body: JSON.stringify({
+                              personName: person.displayName,
+                              stories: person.stories.map((s) => ({
+                                title: s.title,
+                                content: s.content,
+                                type: s.type,
+                              })),
+                            }),
+                          });
+                          const data = await resp.json();
+                          setStorySummary(data.summary ?? null);
+                        } catch {
+                          setStorySummary('Unable to summarise stories at this time.');
+                        } finally {
+                          setSummarizing(false);
+                        }
+                      }}
+                      disabled={summarizing}
+                      className="w-full px-3 py-2 rounded-xl text-xs transition-all"
+                      style={{
+                        background: 'rgba(212,164,84,0.06)',
+                        border: '1px solid rgba(212,164,84,0.20)',
+                        color: summarizing ? 'rgba(212,164,84,0.40)' : 'rgba(212,164,84,0.70)',
+                        cursor: summarizing ? 'default' : 'pointer',
+                      }}
+                    >
+                      {summarizing ? '✦ Summarising…' : '✦ Summarise stories'}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Quick story inline form */}
               {showQuickStory ? (

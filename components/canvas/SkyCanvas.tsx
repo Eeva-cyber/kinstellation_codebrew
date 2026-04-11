@@ -26,7 +26,6 @@ import { PersonPanel } from '@/components/panels/PersonPanel';
 import { MediaEntryView } from '@/components/panels/MediaEntryView';
 import { StoryPanel } from '@/components/panels/StoryPanel';
 import { AddConnectionPanel } from '@/components/panels/AddConnectionPanel';
-import { StoriesRiverPanel } from '@/components/panels/StoriesRiverPanel';
 import { QuickAddModal } from '@/components/panels/QuickAddModal';
 import { TimelinePanel } from '@/components/panels/TimelinePanel';
 import { StoryPopup } from '@/components/ui/StoryPopup';
@@ -36,7 +35,7 @@ import { TutorialOverlay } from './TutorialOverlay';
 import { SavePrompt } from './SavePrompt';
 import type { Person, Story, MediaEntry } from '@/lib/types';
 
-type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | 'timeline' | null;
+type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'timeline' | null;
 
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
@@ -667,7 +666,7 @@ export function SkyCanvas() {
         <MilkyWay
           width={dimensions.width}
           height={dimensions.height}
-          onClick={() => setActivePanel('river')}
+          onClick={() => setActivePanel('timeline')}
         />
 
         {/* Zoom/Pan transform group — only interactive content */}
@@ -1010,14 +1009,6 @@ export function SkyCanvas() {
           }}
         />
       )}
-      {activePanel === 'river' && (
-        <StoriesRiverPanel
-          stories={allStories}
-          onClose={handleClosePanel}
-          onPersonClick={(personId) => handleSunClick(personId)}
-          onAddStoryForPerson={(personId) => handleOpenStoryPanel(personId)}
-        />
-      )}
       {activePanel === 'timeline' && (
         <TimelinePanel
           onClose={handleClosePanel}
@@ -1037,12 +1028,11 @@ export function SkyCanvas() {
       {/* Tutorial overlay — new users only */}
       {showTutorial && (
         <TutorialOverlay
-          selfPersonName={
-            selfPersonId
-              ? (state.persons.find((p) => p.id === selfPersonId)?.displayName ?? '')
-              : ''
-          }
-          onOpenAddPerson={() => setActivePanel('addPerson')}
+          onOpenPersonById={(id) => {
+            handleSunClick(id);
+            // close tutorial card without completing so user still sees remaining steps
+          }}
+          onOpenTimeline={() => setActivePanel('timeline')}
           onComplete={() => {
             localStorage.removeItem('kinstellation_tutorial_pending');
             setShowTutorial(false);

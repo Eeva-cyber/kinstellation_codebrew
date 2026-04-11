@@ -8,6 +8,23 @@ import type { Region } from '../types';
 
 export const regions: Region[] = [
 
+  // ── Warlpiri — Tanami Desert, Northern Territory ──────────────────────────
+  // Added for the demo constellation. All other regions below are Victorian.
+  {
+    id: 'warlpiri',
+    displayName: 'Warlpiri',
+    alternateNames: ['Warlpari', 'Walbiri', 'Wailbri'],
+    stateTerritory: 'Northern Territory',
+    countryDescription: 'Tanami Desert and surrounding lands, centred on Yuendumu, Lajamanu (Hooker Creek), and Willowra.',
+    description:
+      'Warlpiri people are custodians of the Tanami Desert in the Northern Territory. ' +
+      'The Warlpiri language is one of the most widely spoken Indigenous languages in Australia, ' +
+      'with active community-led language programmes at Yuendumu. ' +
+      'Sun side and Shade side moiety system. Skin names (kirda/kurdungurlu) govern ceremony and Country responsibility.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'warlpiri',
+  },
+
   // ── Kulin Nation — central and southern Victoria ──────────────────────────
   // The five Kulin language groups share the Bunjil / Waa moiety system
   // and a long tradition of alliance, trade and ceremony.

@@ -215,18 +215,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const saved    = loadFromLocalStorage();
-    // Only use demo data if this is a brand-new session (no saved data and no profile)
-    const isNewSession = !saved && !localStorage.getItem('kinstellation_self_id');
-    const persons      = saved?.persons       ?? (isNewSession ? [...DEMO_PERSONS]       : []);
-    const relationships = saved?.relationships ?? (isNewSession ? [...DEMO_RELATIONSHIPS] : []);
+    // Hackathon demo mode: always start fresh from hardcoded demo data.
+    // Force Warlpiri region so moiety filter + seasonal calendar load automatically.
+    // Reset tutorial flag so it shows on every cold load.
+    localStorage.removeItem('kinstellation_data');
+    localStorage.setItem(REGION_KEY, 'warlpiri');
+    localStorage.setItem('kinstellation_tutorial_pending', 'true');
+
+    // Load Warlpiri region data now (overrides any savedRegion from above)
+    const warlpiriRegion = regions.find((r) => r.id === 'warlpiri');
+    if (warlpiriRegion) {
+      seasonalCalendar = allCalendars[warlpiriRegion.calendarId];
+      kinshipTemplate  = kinshipTemplates[warlpiriRegion.kinshipTemplateType];
+      currentSeasonId  = getCurrentSeason(seasonalCalendar)?.id ?? null;
+    }
+
+    const persons       = [...DEMO_PERSONS];
+    const relationships = [...DEMO_RELATIONSHIPS];
 
     localDispatch({
       type: 'INIT',
       payload: {
         persons,
         relationships,
-        selectedRegion: savedRegion,
+        selectedRegion: 'warlpiri',
         seasonalCalendar,
         kinshipTemplate,
         currentSeasonId,

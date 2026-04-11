@@ -31,4 +31,20 @@ export const kinshipTemplates: Record<KinshipTemplateType, KinshipTemplate> = {
       'Bunjil (the Wedge-tailed Eagle) and Waa (the Crow) are creator spirits who gave life and law to Country. ' +
       'Your moiety is inherited and governs marriage, ceremony, and responsibility to Country.',
   },
+
+  /**
+   * Warlpiri — Tanami Desert, Northern Territory.
+   * Warlpiri moiety divides all people, animals, plants and elements of Country
+   * into two complementary halves: Sun side and Shade side.
+   * Moiety is patrilineal and governs marriage, ceremony, and skin-name inheritance.
+   * Sources: Meggitt (1962) Desert People; Warlpiri Jukurrpa knowledge held by community.
+   */
+  warlpiri: {
+    templateType: 'warlpiri',
+    moietyNames: ['Sun side', 'Shade side'],
+    description:
+      'Warlpiri people of the Tanami Desert follow a moiety system that divides all people, animals, plants and elements of Country into two complementary halves — Sun side and Shade side. ' +
+      'Your moiety is inherited from your father and governs marriage, ceremony, and your relationships to Country. ' +
+      'Skin names encode both moiety and generation level.',
+  },
 };

@@ -55,7 +55,7 @@ export function MilkyWay({ width, height, onClick }: MilkyWayProps) {
       onClick={onClick}
       role="button"
       tabIndex={0}
-      aria-label="Milky Way — River of Stories. Click to view recent stories."
+      aria-label="Milky Way — River of Stories. Click to open Story Timeline."
       onKeyDown={(e) => e.key === 'Enter' && onClick()}
     >
       {/* Main glow band */}

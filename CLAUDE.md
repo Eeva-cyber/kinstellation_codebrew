@@ -49,6 +49,7 @@ app/
   auth/callback/route.ts      — Exchanges Supabase auth code, redirects to ?next= (defaults /)
   api/
     analyze-story/route.ts    — AI story impact scoring (1–10)
+    summarize-stories/route.ts — AI story summariser; POST {personName, stories[]} → {summary}; uses Claude Haiku; graceful fallback if no API key
     invite/create/route.ts    — POST: creates invitation row, returns token (7-day expiry)
     invite/accept/route.ts    — POST: validates token, creates user_connections row
   invite/[token]/page.tsx     — Invite landing page; unauthenticated → login CTA, authenticated → connect
@@ -60,9 +61,16 @@ proxy.ts (middleware)         — Route protection: only /canvas requires auth; 
 lib/
   types.ts            — All TypeScript types (Person has isGuest?: boolean for connected users)
   data/               — Seasonal calendars, kinship templates, region configs (static JSON)
-  data/demo-nodes.ts  — Three demo persons + two relationships seeded for brand-new sessions
+  data/demo-nodes.ts  — Five demo persons (Aunty June, Uncle Ray, Cousin Mia, Elder Thomas, Young Sarah)
+                         + five relationships; all Warlpiri, stories assigned to generic calendar seasons
+                         (cold_season, harvest_season, rain_season, storm_season, flower_season, fire_season).
+                         Always loaded on cold page load.
   store/AppContext.tsx — React Context + useReducer; localStorage-first persistence;
-                         seeds demo data only for brand-new sessions (no saved data AND no self_id);
+                         DEMO MODE: on every cold load clears kinstellation_data, forces kinstellation_region
+                         to 'warlpiri' (loads moiety template + generic seasonal calendar automatically),
+                         sets kinstellation_tutorial_pending='true' so tutorial shows every cold load;
+                         reseeds from DEMO_PERSONS/DEMO_RELATIONSHIPS; data added during a session persists
+                         within that session via auto-save but is wiped on next load;
                          Supabase auth listener for user state; signOut clears all localStorage keys
   utils/season.ts     — Season detection, star radius/opacity calculations
   supabase.ts         — Supabase client (browser)
@@ -74,6 +82,9 @@ supabase/
 components/
   splash/             — SplashScreen (landing page: galaxy aesthetic, two CTAs)
   auth/               — SignInModal (username+password + Google OAuth + magic link; "Create one" → /onboarding)
+                        NOTE: Account creation in AccountCreationOverlay bypasses Supabase auth entirely
+                        (no synthetic email); credentials stored in localStorage only as kinstellation_account
+                        {username, created}. Supabase signUp/signIn are deferred to backend wiring phase.
   canvas/             — SkyCanvas (zoom/pan/D3 force + tutorial + save prompt + invite overlay;
                         manages `activePlanetInfo` state for PlanetInfoPopup),
                         SolarSystemNode (sun + static orbit planets; inner orbit shows nation/language/community
@@ -88,26 +99,32 @@ components/
                         ConstellationLine (gold/purple colour scheme with glow halos),
                         MilkyWay, MoietyRegions, SeasonalAmbient,
                         SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes,
-                        TutorialOverlay (4-step interactive tutorial for new users),
+                        TutorialOverlay (4-step demo-aware tutorial; all cards positioned fixed top-20 right-6
+                        z-[60] to avoid SeasonWheel z-[50] at bottom-left and toolbar at bottom-right;
+                        step 0 introduces 5 demo people by name; step 1 highlights + button with pulsing ring
+                        + "Open Aunty June for me" (onOpenPersonById prop); step 2 explains moiety buttons +
+                        relationship lines; step 3 explains Timeline + Summarise with "Open the Timeline for me";
+                        shows on every cold load; props: onOpenPersonById, onOpenTimeline, onComplete),
                         SavePrompt (upsell for unauthenticated users with data; renders as a toolbar button — permanent, no dismiss — positioned below the Add a star button)
   panels/             — PersonPanel (profile/stories/connections/media tabs; stories tab is first-class
                         with quick-story form using season pill buttons + era dropdown + mic button +
-                        language toggle (EN·AU/EN·US/EN·GB) and full story list; connections tab shows
-                        invite link for self-star only; profile Save button persists to localStorage +
-                        shows "Saved ✓" feedback; no duplicate delete section),
+                        language toggle (EN·AU/EN·US/EN·GB) and full story list; "✦ Summarise stories"
+                        button (gold pill, shown when person has ≥1 story) calls /api/summarize-stories
+                        and displays Claude-generated summary in a dismissable gold-bordered card above
+                        the story list; connections tab shows invite link for self-star only; profile
+                        Save button persists to localStorage + shows "Saved ✓" feedback; no duplicate
+                        delete section),
                         QuickAddModal (name + nation searchable dropdown (regions data, scrollable) +
                         language + community searchable dropdowns + moiety; clan removed; all fields blank
                         on open (no pre-fill); × close button; onboarding visual style),
                         StoryPanel (season pill buttons + era `<select>` dropdown + mic button with
                         language toggle EN·AU/EN·US/EN·GB),
                         AddConnectionPanel (purple/gold restyle),
-                        StoriesRiverPanel,
-                        TimelinePanel (4 filters: person, season, generation, voice — each in own column
-                        with icon + bold label + gold count badge; dropdown checkboxes with scroll, no
-                        search bar, overflow clipping fixed; generation uses Aboriginal generational time
-                        groups (Country's making / Elders' time / Parents' time / Our time / Time unknown);
-                        voice filters by story medium (Yarning/audio, Vision/photo|video, Written words/text);
-                        filter labels show profile language group; Law filter removed; panel height 58vh)
+                        TimelinePanel (4 filters: person, season, generation, voice; "✦ Summarise N stories"
+                        button in header — always visible when stories are displayed, one click calls
+                        /api/summarize-stories with the current filtered set; summary renders in a gold-bordered
+                        banner between header and filters, dismissable with ×; summary auto-clears when any
+                        filter changes; Milky Way click also opens this panel; panel height 58vh)
   onboarding/         — RegionSelector (5-step Victorian Indigenous profile: name → nation → language
                         group → community → moiety; clan + skin name removed; moiety inferred from
                         nation/community; language group distinct from Nation name (one Nation may hold
@@ -126,8 +143,8 @@ components/
 / (SplashScreen)
   ├── "Begin your constellation" → /onboarding
   │     └── 5-step Victorian Indigenous profile form (RegionSelector)
-  │           └── AccountCreationOverlay (username + password)
-  │                 ├── Create account → localStorage.setItem('kinstellation_tutorial_pending','true') → /canvas
+  │           └── AccountCreationOverlay (username + password — no email, no Supabase call)
+  │                 ├── Create account → localStorage kinstellation_account + tutorial_pending → /canvas
   │                 │     └── TutorialOverlay (4-step interactive, clears flag on complete)
   │                 └── "Skip for now" → /canvas (no tutorial)
   └── "Sign in" → SignInModal
@@ -155,6 +172,7 @@ components/
 | `kinstellation_self_id` | UUID of the user's own Person node |
 | `kinstellation_region` | Selected region ID |
 | `kinstellation_tutorial_pending` | `'true'` while tutorial hasn't been completed |
+| `kinstellation_account` | `{ username, created }` — local-only account record (no Supabase) |
 
 ## Onboarding profile fields (RegionSelector)
 

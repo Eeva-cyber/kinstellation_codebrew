@@ -228,6 +228,8 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
   const [selectedSeasonIds, setSelectedSeasonIds] = useState<string[]>([]);
   const [selectedEraIds,    setSelectedEraIds]    = useState<string[]>([]);
   const [selectedVoiceIds,  setSelectedVoiceIds]  = useState<string[]>([]);
+  const [summarizing,       setSummarizing]        = useState(false);
+  const [timelineSummary,   setTimelineSummary]    = useState<string | null>(null);
 
   const [profileLanguage, setProfileLanguage] = useState('');
   useEffect(() => {
@@ -236,6 +238,37 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
       if (p.language) setProfileLanguage(p.language);
     } catch { /* ignore */ }
   }, []);
+
+  // Clear summary whenever filters change
+  useEffect(() => { setTimelineSummary(null); }, [selectedPersonIds, selectedSeasonIds, selectedEraIds, selectedVoiceIds]);
+
+  async function handleSummarize() {
+    if (summarizing || displayedStories.length === 0) return;
+    setSummarizing(true);
+    try {
+      const resp = await fetch('/api/summarize-stories', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          personName: selectedPersonIds.length === 1
+            ? (state.persons.find(p => p.id === selectedPersonIds[0])?.displayName ?? 'this community')
+            : 'this community',
+          stories: displayedStories.map((s) => ({
+            title: s.title,
+            content: s.content,
+            type: s.type,
+            personName: s.personName,
+          })),
+        }),
+      });
+      const data = await resp.json();
+      setTimelineSummary(data.summary ?? null);
+    } catch {
+      setTimelineSummary('Unable to summarise at this time — please try again.');
+    } finally {
+      setSummarizing(false);
+    }
+  }
 
   const calendar = state.seasonalCalendar;
   const seasons  = calendar?.seasons ?? [];
@@ -341,6 +374,26 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
             )}
           </div>
           <div className="flex items-center gap-3">
+            {/* Summarise button — always visible when there are stories */}
+            {displayedStories.length > 0 && (
+              <button
+                onClick={handleSummarize}
+                disabled={summarizing}
+                className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  color: summarizing ? 'rgba(212,164,84,0.40)' : 'rgba(212,164,84,0.80)',
+                  border: '1px solid rgba(212,164,84,0.30)',
+                  background: 'rgba(212,164,84,0.07)',
+                  cursor: summarizing ? 'default' : 'pointer',
+                }}
+                onMouseEnter={(e) => { if (!summarizing) e.currentTarget.style.background = 'rgba(212,164,84,0.14)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(212,164,84,0.07)'; }}
+              >
+                {summarizing
+                  ? '✦ Summarising…'
+                  : `✦ Summarise ${displayedStories.length} stor${displayedStories.length === 1 ? 'y' : 'ies'}`}
+              </button>
+            )}
             {activeFilters > 0 && (
               <button
                 onClick={() => { setSelectedPersonIds([]); setSelectedSeasonIds([]); setSelectedEraIds([]); setSelectedVoiceIds([]); }}
@@ -372,6 +425,31 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
             </button>
           </div>
         </div>
+
+        {/* ── AI summary banner ── */}
+        {timelineSummary && (
+          <div
+            className="shrink-0 px-6 py-3 flex gap-3 items-start"
+            style={{ background: 'rgba(212,164,84,0.05)', borderBottom: '1px solid rgba(212,164,84,0.18)' }}
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: 'rgba(212,164,84,0.55)' }}>
+                ✦ Summary
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                {timelineSummary}
+              </p>
+            </div>
+            <button
+              onClick={() => setTimelineSummary(null)}
+              className="shrink-0 text-sm leading-none px-2 py-1 rounded-lg mt-0.5"
+              style={{ color: 'rgba(212,164,84,0.45)', background: 'rgba(212,164,84,0.08)' }}
+              title="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* ── Filter row — full width, 4 columns ── */}
         <div
