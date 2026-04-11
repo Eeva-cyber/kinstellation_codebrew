@@ -127,7 +127,7 @@ export function SkyCanvas() {
     const profile = localStorage.getItem('kinstellation_profile');
     if (!profile) return;
 
-    let parsed: { name?: string; mob?: string; skinName?: string } = {};
+    let parsed: { name?: string; mob?: string; skinName?: string; moiety?: string } = {};
     try { parsed = JSON.parse(profile); } catch { return; }
     if (!parsed.name) return;
 
@@ -156,6 +156,7 @@ export function SkyCanvas() {
       id: selfId,
       displayName: parsed.name.trim(),
       skinName: parsed.skinName ?? undefined,
+      moiety: parsed.moiety ?? undefined,
       countryLanguageGroup: parsed.mob ?? undefined,
       regionSelectorValue: localStorage.getItem('kinstellation_region') ?? '',
       isDeceased: false,
@@ -526,9 +527,15 @@ export function SkyCanvas() {
   );
 
   function isPersonDimmed(person: Person): boolean {
+    // Dim if a moiety filter is active and person is NOT in it (including unassigned)
     if (activeMoiety && person.moiety !== activeMoiety) return true;
     if (filterSeasonIds.length > 0 && !person.stories.some((s) => filterSeasonIds.includes(s.seasonTag))) return true;
     return false;
+  }
+
+  function isPersonBoosted(person: Person): boolean {
+    // Boosted = active moiety is set AND this person is explicitly in it
+    return !!(activeMoiety && person.moiety === activeMoiety);
   }
 
   // Center on a person — accounts for the 22rem side panel when it's open
@@ -638,6 +645,16 @@ export function SkyCanvas() {
             const fromPos = nodePositions[rel.fromPersonId];
             const toPos = nodePositions[rel.toPersonId];
             if (!fromPos || !toPos) return null;
+            const fromPerson = state.persons.find((p) => p.id === rel.fromPersonId);
+            const toPerson   = state.persons.find((p) => p.id === rel.toPersonId);
+
+            let lineState: 'bright' | 'dim' | 'normal' = 'normal';
+            if (activeMoiety) {
+              const fromInActive = fromPerson?.moiety === activeMoiety;
+              const toInActive   = toPerson?.moiety   === activeMoiety;
+              lineState = (fromInActive && toInActive) ? 'bright' : 'dim';
+            }
+
             return (
               <ConstellationLine
                 key={rel.id}
@@ -647,6 +664,7 @@ export function SkyCanvas() {
                 y2={toPos.y}
                 relationshipType={rel.relationshipType}
                 isAvoidance={rel.isAvoidance}
+                lineState={lineState}
               />
             );
           })}
@@ -668,6 +686,7 @@ export function SkyCanvas() {
                 connectionCount={connectionCounts[person.id] ?? 0}
                 zoom={zoom}
                 dimmed={isPersonDimmed(person)}
+                boosted={isPersonBoosted(person)}
                 onSunClick={() => handleSunClick(person.id)}
                 onStoryClick={(story) => setActiveStory({ story, personName: person.displayName, personId: person.id })}
                 onPlanetClick={(action) => handlePlanetClick(person.id, action)}

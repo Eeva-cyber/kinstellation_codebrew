@@ -87,9 +87,10 @@ export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
           <input
             type="text"
             value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
+            onChange={(e) => { const v = e.target.value; setDisplayName(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v); }}
             placeholder="Name"
             autoFocus
+            autoCapitalize="sentences"
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="w-full rounded-lg px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none transition-colors"
             style={{

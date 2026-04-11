@@ -283,17 +283,25 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
                   <input
                     type="text"
                     value={quickStoryTitle}
-                    onChange={(e) => setQuickStoryTitle(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setQuickStoryTitle(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v);
+                    }}
                     placeholder="Story title"
                     autoFocus
+                    autoCapitalize="sentences"
                     className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15]"
                   />
                   <textarea
                     value={quickStoryContent}
-                    onChange={(e) => setQuickStoryContent(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setQuickStoryContent(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v);
+                    }}
                     onMouseDown={(e) => e.stopPropagation()}
                     placeholder="Tell the story..."
                     rows={4}
+                    autoCapitalize="sentences"
                     className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] resize-none"
                   />
                   <SeasonPicker value={quickStorySeason} onChange={setQuickStorySeason} />
@@ -505,8 +513,12 @@ function Field({
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v);
+        }}
         placeholder={placeholder}
+        autoCapitalize="sentences"
         className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
       />
     </div>
@@ -568,9 +580,14 @@ function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (
         <input
           type="text"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onChange={(e) => {
+            const v = e.target.value;
+            const cap = v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v;
+            setSearch(cap); onChange(cap); setOpen(true);
+          }}
           onFocus={() => setOpen(true)}
           placeholder="Search or type your own…"
+          autoCapitalize="sentences"
           className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 pr-8 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
         />
         <button

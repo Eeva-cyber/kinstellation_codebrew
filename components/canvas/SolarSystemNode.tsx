@@ -16,6 +16,8 @@ interface SolarSystemNodeProps {
   connectionCount: number;
   zoom: number;
   dimmed?: boolean;
+  /** Active moiety selected and this person belongs to it — shine brighter than normal */
+  boosted?: boolean;
   onSunClick: () => void;
   onStoryClick: (story: Story) => void;
   onPlanetClick: (action: 'identity' | 'stories' | 'media') => void;
@@ -86,6 +88,7 @@ export function SolarSystemNode({
   connectionCount,
   zoom,
   dimmed = false,
+  boosted = false,
   onSunClick,
   onStoryClick,
   onPlanetClick,
@@ -101,9 +104,8 @@ export function SolarSystemNode({
   const starColor = getMoietyColor(person.moiety, moietyNames);
   const connectionBrightness = Math.min(1, 0.7 + connectionCount * 0.08);
   const guestDim = isGuest ? 0.55 : 1;
-  const finalOpacity = dimmed ? 0.12 : Math.min(
-    (isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness * guestDim, 1,
-  );
+  const baseOpacity = Math.min((isSeasonRelevant ? opacity * 1.4 : opacity) * connectionBrightness * guestDim, 1);
+  const finalOpacity = dimmed ? 0.08 : boosted ? Math.min(baseOpacity * 1.6 + 0.2, 1) : baseOpacity;
 
   const hasSkinName  = !!person.skinName;
   const hasMedia     = person.stories.some((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video');
@@ -137,6 +139,19 @@ export function SolarSystemNode({
         fill={isSelf ? 'rgba(212,164,84,0.025)' : 'rgba(120,180,255,0.018)'} />
       <circle cx={x} cy={y} r={ORBITS.far.radius + 28}
         fill={isSelf ? 'rgba(212,164,84,0.04)' : 'rgba(120,180,255,0.03)'} />
+
+      {/* ── Moiety boost glow — extra halos when this moiety is selected ── */}
+      {boosted && (
+        <>
+          <circle cx={x} cy={y} r={ORBITS.far.radius + 60}
+            fill={starColor} opacity={0.06} />
+          <circle cx={x} cy={y} r={ORBITS.far.radius + 38}
+            fill={starColor} opacity={0.10} />
+          <circle cx={x} cy={y} r={baseRadius + 28} fill="none"
+            stroke={starColor} strokeWidth={1.5} opacity={0.35}
+            className="animate-star-pulse" />
+        </>
+      )}
 
       {/* ── Self extra corona ── */}
       {isSelf && (

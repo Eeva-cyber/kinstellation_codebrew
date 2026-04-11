@@ -134,9 +134,10 @@ export function StoryPopup({
               {isEditing ? (
                 <input
                   value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
+                  onChange={(e) => { const v = e.target.value; setEditTitle(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v); }}
                   style={{ ...INPUT, fontSize: 18, fontWeight: 500, background: 'rgba(88,28,135,0.18)', border: '1px solid rgba(212,164,84,0.35)' }}
                   autoFocus
+                  autoCapitalize="sentences"
                 />
               ) : (
                 <h2 className="text-xl font-medium" style={{ color: 'rgba(255,255,255,0.92)' }}>
@@ -206,9 +207,10 @@ export function StoryPopup({
             {isEditing && !isPhoto ? (
               <textarea
                 value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
+                onChange={(e) => { const v = e.target.value; setEditContent(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v); }}
                 onMouseDown={(e) => e.stopPropagation()}
                 rows={7}
+                autoCapitalize="sentences"
                 style={{ ...INPUT, resize: 'none', lineHeight: 1.65 }}
               />
             ) : isPhoto ? (
@@ -233,8 +235,9 @@ export function StoryPopup({
               </label>
               <input
                 value={editSeasonalContext}
-                onChange={(e) => setEditSeasonalContext(e.target.value)}
+                onChange={(e) => { const v = e.target.value; setEditSeasonalContext(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v); }}
                 placeholder="e.g. the wattle was flowering..."
+                autoCapitalize="sentences"
                 style={{ ...INPUT }}
               />
             </div>
