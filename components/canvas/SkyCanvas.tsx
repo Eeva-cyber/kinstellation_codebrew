@@ -65,6 +65,10 @@ export function SkyCanvas() {
   const [activeMoiety, setActiveMoiety] = useState<string | null>(null);
   const [zoomVisible, setZoomVisible] = useState(false);
   const zoomHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [showInviteOverlay, setShowInviteOverlay] = useState(false);
   const pendingCenterId = useRef<string | null>(null);
 
   // Refs that always hold the latest state — used by event handlers that can't be re-registered
@@ -501,6 +505,18 @@ export function SkyCanvas() {
     setPersonPanelFocus(undefined);
   }, []);
 
+  const handleInvite = useCallback(async () => {
+    setShowInviteOverlay((v) => !v);
+    if (inviteLink) return;
+    setInviteLoading(true);
+    try {
+      const res = await fetch('/api/invite/create', { method: 'POST' });
+      const data = await res.json();
+      if (data.token) setInviteLink(`${window.location.origin}/invite/${data.token}`);
+    } catch { /* ignore */ }
+    setInviteLoading(false);
+  }, [inviteLink]);
+
   const activePerson = activePersonId
     ? state.persons.find((p) => p.id === activePersonId) ?? null
     : null;
@@ -746,6 +762,57 @@ export function SkyCanvas() {
         </button>
       </div>
 
+      {/* Invite overlay */}
+      {showInviteOverlay && (
+        <div
+          className="absolute bottom-24 right-6 z-30 w-72 rounded-xl p-4 animate-fade-in"
+          style={{ background: 'rgba(8,4,22,0.97)', border: '1px solid rgba(88,28,135,0.4)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs uppercase tracking-wider" style={{ color: 'rgba(212,164,84,0.7)' }}>
+              Invite to your constellation
+            </h3>
+            <button
+              onClick={() => setShowInviteOverlay(false)}
+              className="text-white/30 hover:text-white/60 text-lg leading-none"
+            >
+              &times;
+            </button>
+          </div>
+          {inviteLoading ? (
+            <p className="text-xs text-white/30">Creating link…</p>
+          ) : inviteLink ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={inviteLink}
+                  className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white/70 truncate"
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(inviteLink);
+                    setInviteCopied(true);
+                    setTimeout(() => setInviteCopied(false), 2000);
+                  }}
+                  className="text-xs shrink-0 transition-colors"
+                  style={{ color: inviteCopied ? 'rgba(212,164,84,0.9)' : 'rgba(212,164,84,0.5)' }}
+                >
+                  {inviteCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-xs text-white/20">Expires in 7 days. Share this link to connect your stars.</p>
+            </div>
+          ) : (
+            <p className="text-xs text-red-400/60">Failed to create link. Try again.</p>
+          )}
+        </div>
+      )}
+
+
       {/* Bottom toolbar — larger purple/gold FABs */}
       <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-3 items-end">
         <div className="flex items-center gap-3 group/tl">
@@ -765,6 +832,26 @@ export function SkyCanvas() {
               <circle cx="6" cy="11" r="2" fill="currentColor" />
               <circle cx="11" cy="11" r="2" fill="currentColor" />
               <circle cx="16" cy="11" r="2" fill="currentColor" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-center gap-3 group/inv">
+          <span className="text-xs opacity-0 group-hover/inv:opacity-100 transition-all duration-200 tracking-wide font-light" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            Invite someone
+          </span>
+          <button
+            onClick={handleInvite}
+            className="w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg"
+            style={{ background: 'rgba(88,28,135,0.55)', border: '1px solid rgba(212,164,84,0.3)', boxShadow: '0 4px 24px rgba(88,28,135,0.3)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(109,40,217,0.7)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(88,28,135,0.55)'; e.currentTarget.style.transform = 'scale(1)'; }}
+            aria-label="Invite to constellation"
+          >
+            <svg width="20" height="20" viewBox="0 0 18 18" fill="none" className="text-amber-200/80 group-hover:text-amber-100 transition-colors">
+              <path d="M7.5 10.5a3.5 3.5 0 0 0 5 0l2-2a3.536 3.536 0 0 0-5-5l-1 1"
+                stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10.5 7.5a3.5 3.5 0 0 0-5 0l-2 2a3.536 3.536 0 0 0 5 5l1-1"
+                stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         </div>
@@ -840,6 +927,7 @@ export function SkyCanvas() {
       {activePanel === 'person' && activePerson && (
         <PersonPanel
           person={activePerson}
+          isSelf={activePerson.id === selfPersonId}
           focusSection={personPanelFocus}
           onClose={handleClosePanel}
           onAddStory={(personId) => handleOpenStoryPanel(personId)}

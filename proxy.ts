@@ -31,7 +31,30 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isPublicRoute = pathname === '/login' || pathname.startsWith('/auth/');
+
+  // Allow invite pages, public assets, and API routes through
+  if (pathname.startsWith('/invite/')) {
+    return supabaseResponse;
+  }
+
+  // Dev bypass: set DEV_SKIP_AUTH=true in .env.local to skip auth checks locally
+  if (process.env.DEV_SKIP_AUTH === 'true') {
+    return supabaseResponse;
+  }
+
+  // Protected routes: redirect to /login if not authenticated
+  const isProtected =
+    pathname.startsWith('/canvas') || pathname.startsWith('/onboarding');
+  if (isProtected && !user) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Redirect authenticated users away from login to canvas
+  if (pathname === '/login' && user) {
+    return NextResponse.redirect(new URL('/canvas', request.url));
+  }
 
   return supabaseResponse;
 }

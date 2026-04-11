@@ -9,6 +9,7 @@ import { regions } from '@/lib/data/regions';
 
 interface PersonPanelProps {
   person: Person;
+  isSelf?: boolean;
   focusSection?: 'identity' | 'stories' | 'connections';
   onClose: () => void;
   onAddStory: (personId: string) => void;
@@ -17,7 +18,7 @@ interface PersonPanelProps {
 
 type Section = 'identity' | 'stories' | 'connections';
 
-export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddConnection }: PersonPanelProps) {
+export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory, onAddConnection }: PersonPanelProps) {
   const { state, dispatch } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,6 +45,11 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Invite link
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
   const sectionNames = state.kinshipTemplate?.sectionNames;
@@ -360,6 +366,51 @@ export function PersonPanel({ person, focusSection, onClose, onAddStory, onAddCo
               </button>
             </div>
           </CollapsibleSection>
+
+          {/* Invite link (self-star only) */}
+          {isSelf && (
+            <div className="mt-6 pt-4 border-t border-white/[0.06]">
+              {inviteLink ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-white/40">Share this link to connect:</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={inviteLink}
+                      className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white/70 truncate"
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteLink);
+                        setInviteCopied(true);
+                        setTimeout(() => setInviteCopied(false), 2000);
+                      }}
+                      className="text-xs text-amber-400/60 hover:text-amber-400/80 transition-colors shrink-0"
+                    >
+                      {inviteCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  disabled={inviteLoading}
+                  onClick={async () => {
+                    setInviteLoading(true);
+                    try {
+                      const res = await fetch('/api/invite/create', { method: 'POST' });
+                      const data = await res.json();
+                      if (data.token) setInviteLink(`${window.location.origin}/invite/${data.token}`);
+                    } catch { /* ignore */ }
+                    setInviteLoading(false);
+                  }}
+                  className="w-full text-xs text-amber-400/60 hover:text-amber-400/80 transition-colors py-2 border border-amber-400/15 rounded-lg hover:bg-amber-400/5 disabled:opacity-40"
+                >
+                  {inviteLoading ? 'Creating link…' : 'Invite someone to your constellation'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Delete */}
           <div className="mt-6 pt-4 border-t border-white/[0.06]">
