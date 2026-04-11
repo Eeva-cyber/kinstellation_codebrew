@@ -14,7 +14,7 @@ These are not separate features. They are the same system viewed from different 
 
 ## Key design principles
 
-- **Solar systems = people.** Each person is a sun with orbiting planets representing their attributes (skin name, birth, stories, media). Sun brightness and size scale with story count AND connection count. Unstudied stars fade (decay mechanic based on `lastUpdated`).
+- **Solar systems = people.** Each person is a sun with orbiting planets representing their attributes (skin name, birth, stories, media). Sun brightness and size scale with story count AND connection count. Unstudied stars fade (decay mechanic based on `lastUpdated`). Each media entry also gets its own planet in a far orbit (MediaPlanet).
 - **Galaxies = families.** Connected solar systems form a galaxy. Relationship lines are organic and non-hierarchical, not Western top-down trees. Line style encodes relationship type (solid = direct, dashed = classificatory, dotted red = avoidance).
 - **Moieties = sky regions.** Canvas is split into two halves reflecting the moiety system. D3 force simulation pushes nodes toward their moiety's region.
 - **Milky Way = river of stories.** A luminous diagonal band across the canvas. Clicking it opens the Stories River panel showing all stories.
@@ -55,9 +55,12 @@ proxy.ts (middleware)         — Route protection: /canvas + /onboarding requir
                                 visiting /login are redirected to /canvas.
 
 lib/
-  types.ts            — All TypeScript types (Person has isGuest?: boolean for connected users)
-  data/               — Seasonal calendars, kinship templates, region configs (static JSON)
+  types.ts            — All TypeScript types (Person has isGuest?: boolean for connected users;
+                         MediaEntry union: JournalEntry | PhotoEntry | ArticleEntry | VideoEntry)
+  data/               — Seasonal calendars, kinship templates, region configs (static JSON);
+                         mob-groups.ts (MobGroup[] — AIATSIS-sourced language groups/clans with skin names)
   store/AppContext.tsx — React Context + useReducer; syncs to Supabase (persons, stories, relationships);
+                         ADD_MEDIA_ENTRY / DELETE_MEDIA_ENTRY reducer cases for media tab;
                          auto-creates self-person for new users from auth metadata;
                          loads guest stars from user_connections table; signOut clears localStorage
   utils/season.ts     — Season detection, star radius/opacity calculations
@@ -72,12 +75,14 @@ components/
                         SolarSystemNode (sun + orbit planets; isGuest dims to 55% opacity),
                         ConstellationLine, MilkyWay, MoietyRegions, SeasonalAmbient,
                         SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes
-  panels/             — PersonPanel (collapsible sections, inline quick-story form;
+  panels/             — PersonPanel (3-tab layout: Profile / Connections / Media;
                         isSelf prop shows invite link UI),
+                        MediaEntryView (full-screen overlay for viewing media entries),
                         QuickAddModal, StoryPanel, AddConnectionPanel,
                         StoriesRiverPanel, TimelinePanel
-  onboarding/         — RegionSelector (single dropdown, simplified)
-  ui/                 — SeasonPicker, StoryPopup, WordTooltip
+  onboarding/         — RegionSelector (single dropdown, with mob-groups data powering mob search)
+  ui/                 — SeasonPicker (dropdown rendered via createPortal to avoid clipping),
+                        StoryPopup, WordTooltip
 ```
 
 ## Auth & data flow
@@ -90,9 +95,11 @@ components/
 
 ## Data model
 
-- **Person** — id, displayName, indigenousName, skinName, moiety, stories[], visibility, lastUpdated, position (x/y), isGuest?
+- **Person** — id, displayName, indigenousName, skinName, moiety, stories[], mediaEntries[]?, visibility, lastUpdated, position (x/y), isGuest?
 - **Relationship** — fromPersonId, toPersonId, relationshipType (12 types including classificatory), isAvoidance
 - **Story** — title, type (text/photo/audio/video), content, seasonTag (required), year (optional), seasonalContext, visibility
+- **MediaEntry** — union of `JournalEntry` | `PhotoEntry` | `ArticleEntry` | `VideoEntry` (all have id, type, createdAt; photos store base64 imageData; journal/photo have seasonTag + useIndigenousCalendar)
+- **MobGroup** — id, name, alternateNames?, stateTerritory, type (language_group/clan/community/nation), skinNames? — static data in `lib/data/mob-groups.ts`, sourced from AIATSIS
 - **SeasonalCalendar** — seasons[] each with name, approximateMonths, colorPalette, celestialIndicators
 - **KinshipTemplate** — templateType, moietyNames, sectionNames, genderedPrefixes
 

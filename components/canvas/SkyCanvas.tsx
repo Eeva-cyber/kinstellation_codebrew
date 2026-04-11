@@ -103,74 +103,8 @@ export function SkyCanvas() {
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   useEffect(() => {
     const stored = localStorage.getItem("kinstellation_self_id");
-    if (stored) { setSelfPersonId(stored); return; }
-    const profile = localStorage.getItem("kinstellation_profile");
-    if (profile && state.persons.length > 0) {
-      try {
-        const { name } = JSON.parse(profile);
-        const match = state.persons.find(
-          (p) => p.displayName.trim().toLowerCase() === name?.trim().toLowerCase()
-        );
-        if (match) {
-          localStorage.setItem("kinstellation_self_id", match.id);
-          setSelfPersonId(match.id);
-        }
-      } catch { /* ignore */ }
-    }
+    if (stored) setSelfPersonId(stored);
   }, [state.persons]);
-
-  // Ensure self person exists on canvas — runs once when data is initialized.
-  // Depends only on state.initialized to prevent repeated creation as persons are added.
-  const selfPersonCreated = useRef(false);
-  useEffect(() => {
-    if (!state.initialized) return;
-    if (selfPersonCreated.current) return;
-
-    const profile = localStorage.getItem('kinstellation_profile');
-    if (!profile) return;
-
-    let parsed: { name?: string; mob?: string; skinName?: string; moiety?: string } = {};
-    try { parsed = JSON.parse(profile); } catch { return; }
-    if (!parsed.name) return;
-
-    const existingId = localStorage.getItem('kinstellation_self_id');
-    if (existingId && state.persons.some((p) => p.id === existingId)) {
-      setSelfPersonId(existingId);
-      selfPersonCreated.current = true;
-      return;
-    }
-
-    // Recover by name match
-    const match = state.persons.find(
-      (p) => p.displayName.trim().toLowerCase() === parsed.name!.trim().toLowerCase()
-    );
-    if (match) {
-      localStorage.setItem('kinstellation_self_id', match.id);
-      setSelfPersonId(match.id);
-      selfPersonCreated.current = true;
-      return;
-    }
-
-    // Create self person — guard prevents double-dispatch in StrictMode
-    selfPersonCreated.current = true;
-    const selfId = crypto.randomUUID();
-    const selfPerson: Person = {
-      id: selfId,
-      displayName: parsed.name.trim(),
-      skinName: parsed.skinName ?? undefined,
-      moiety: parsed.moiety ?? undefined,
-      countryLanguageGroup: parsed.mob ?? undefined,
-      regionSelectorValue: localStorage.getItem('kinstellation_region') ?? '',
-      isDeceased: false,
-      stories: [],
-      visibility: 'public',
-      lastUpdated: new Date().toISOString(),
-      position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
-    };
-    dispatch({ type: 'ADD_PERSON', payload: selfPerson });
-    localStorage.setItem('kinstellation_self_id', selfId);
-    setSelfPersonId(selfId);
-  }, [state.initialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connection count per person (memoized)
   const connectionCounts = useMemo(() => {
@@ -910,7 +844,7 @@ export function SkyCanvas() {
       <button
         onClick={() => {
           if (confirm('Change your region? This will update your seasonal calendar and kinship template.')) {
-            window.location.href = '/onboarding';
+            window.location.href = '/canvas';
           }
         }}
         className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-lg

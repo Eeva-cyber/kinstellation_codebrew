@@ -42,18 +42,10 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Protected routes: redirect to /login if not authenticated
-  const isProtected =
-    pathname.startsWith('/canvas') || pathname.startsWith('/onboarding');
-  if (isProtected && !user) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Redirect authenticated users away from login to canvas
-  if (pathname === '/login' && user) {
-    return NextResponse.redirect(new URL('/canvas', request.url));
+  // Canvas and onboarding are now open — the OnboardOverlay handles first-time users.
+  // Redirect /login to splash (auth is handled by inline SignInModal).
+  if (pathname === '/login') {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   return supabaseResponse;
