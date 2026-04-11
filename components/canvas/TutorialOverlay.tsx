@@ -213,7 +213,7 @@ export function TutorialOverlay({
     activePanel === 'timeline' ? 'fixed top-4 left-6 z-[60] w-72' :
     'fixed top-20 left-6 z-[60] w-72';
 
-  // ── Progress dots + speaker toggle row ──────────────────────────────────────
+  // ── Progress dots + speaker toggle + close row ──────────────────────────────
   function DotRow() {
     return (
       <div className="flex items-center justify-between mb-4">
@@ -227,33 +227,57 @@ export function TutorialOverlay({
             }} />
           ))}
         </div>
-        {/* Speaker toggle — always visible so user can enable/disable any time */}
-        <button
-          onClick={toggleAudio}
-          title={audioEnabled ? 'Turn off audio guide' : 'Turn on audio guide'}
-          className="flex items-center justify-center rounded-xl transition-all"
-          style={{
-            width: 32, height: 32,
-            background: audioEnabled ? 'rgba(212,164,84,0.18)' : 'rgba(255,255,255,0.04)',
-            border: audioEnabled ? '1px solid rgba(212,164,84,0.45)' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: audioEnabled ? '0 0 12px rgba(212,164,84,0.25)' : 'none',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = audioEnabled ? 'rgba(212,164,84,0.28)' : 'rgba(255,255,255,0.08)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = audioEnabled ? 'rgba(212,164,84,0.18)' : 'rgba(255,255,255,0.04)'; }}
-        >
-          {audioEnabled ? (
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-              <path d="M2 5.5h2l3-3v10l-3-3H2v-4z" fill="rgba(212,164,84,0.9)" />
-              <path d="M10 4a4 4 0 010 7M11.5 2a7 7 0 010 11" stroke="rgba(212,164,84,0.9)" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-              <path d="M2 5.5h2l3-3v10l-3-3H2v-4z" fill="rgba(255,255,255,0.35)" />
-              <line x1="10" y1="5" x2="14" y2="10" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round" />
-              <line x1="14" y1="5" x2="10" y2="10" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* Speaker toggle */}
+          <button
+            onClick={toggleAudio}
+            title={audioEnabled ? 'Turn off audio guide' : 'Turn on audio guide'}
+            className="flex items-center justify-center rounded-xl transition-all"
+            style={{
+              width: 32, height: 32,
+              background: audioEnabled ? 'rgba(212,164,84,0.18)' : 'rgba(255,255,255,0.04)',
+              border: audioEnabled ? '1px solid rgba(212,164,84,0.45)' : '1px solid rgba(255,255,255,0.1)',
+              boxShadow: audioEnabled ? '0 0 12px rgba(212,164,84,0.25)' : 'none',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = audioEnabled ? 'rgba(212,164,84,0.28)' : 'rgba(255,255,255,0.08)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = audioEnabled ? 'rgba(212,164,84,0.18)' : 'rgba(255,255,255,0.04)'; }}
+          >
+            {audioEnabled ? (
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M2 5.5h2l3-3v10l-3-3H2v-4z" fill="rgba(212,164,84,0.9)" />
+                <path d="M10 4a4 4 0 010 7M11.5 2a7 7 0 010 11" stroke="rgba(212,164,84,0.9)" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M2 5.5h2l3-3v10l-3-3H2v-4z" fill="rgba(255,255,255,0.35)" />
+                <line x1="10" y1="5" x2="14" y2="10" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="14" y1="5" x2="10" y2="10" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+          {/* Close / skip tutorial */}
+          <button
+            onClick={() => { stopSpeech(); onComplete(); }}
+            title="Skip tutorial"
+            className="flex items-center justify-center rounded-xl transition-all text-lg leading-none"
+            style={{
+              width: 32, height: 32,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.35)',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.65)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.35)';
+            }}
+          >
+            &times;
+          </button>
+        </div>
       </div>
     );
   }
@@ -293,7 +317,7 @@ export function TutorialOverlay({
       <>
         <DarkBackdrop />
         <div
-          className={`${CARD_POSITION} rounded-2xl animate-fade-in overflow-hidden`}
+          className={`${CARD_POSITION} rounded-2xl animate-fade-in overflow-hidden relative`}
           style={cardStyle}
           onMouseDown={e => e.stopPropagation()}
         >
@@ -301,6 +325,28 @@ export function TutorialOverlay({
           <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, rgba(212,164,84,0.6), rgba(139,92,246,0.6))' }} />
 
           <div className="p-6">
+            {/* Close button */}
+            <button
+              onClick={() => { stopSpeech(); onComplete(); }}
+              title="Skip tutorial"
+              className="absolute top-4 right-4 flex items-center justify-center rounded-xl transition-all text-lg leading-none"
+              style={{
+                width: 28, height: 28,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.35)',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)';
+                (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.65)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+                (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.35)';
+              }}
+            >
+              &times;
+            </button>
             {/* Icon */}
             <div className="flex justify-center mb-4">
               <div
