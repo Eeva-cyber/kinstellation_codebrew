@@ -2,7 +2,7 @@
 
 import { getStarOpacity, hasStoriesInSeason } from '@/lib/utils/season';
 import { getSeasonById } from '@/lib/utils/season';
-import type { Person, SeasonalCalendar, Story } from '@/lib/types';
+import type { Person, SeasonalCalendar, Story, MediaEntry } from '@/lib/types';
 
 interface SolarSystemNodeProps {
   person: Person;
@@ -21,7 +21,20 @@ interface SolarSystemNodeProps {
   onSunClick: () => void;
   onStoryClick: (story: Story) => void;
   onPlanetClick: (action: 'identity' | 'stories' | 'media') => void;
+  onMediaEntryClick: (entry: MediaEntry) => void;
   onDragStart: (e: React.MouseEvent | React.TouchEvent) => void;
+}
+
+function getMediaEntryColor(entry: MediaEntry, seasonalCalendar: SeasonalCalendar | null): { color: string; hasRing: boolean } {
+  if (entry.type === 'article') return { color: '#8898C8', hasRing: true };
+  if (entry.type === 'video')   return { color: '#C89848', hasRing: true };
+  // journal / photo — try season color
+  const tag = (entry as { seasonTag: string }).seasonTag;
+  if (tag && tag !== 'unsure' && seasonalCalendar) {
+    const season = getSeasonById(seasonalCalendar, tag);
+    if (season) return { color: season.colorPalette.accentColor, hasRing: false };
+  }
+  return { color: entry.type === 'photo' ? '#D4A454' : '#9890B8', hasRing: false };
 }
 
 function getMoietyColor(moiety: string | undefined, moietyNames?: [string, string]): string {
@@ -61,6 +74,28 @@ function OrbitRing({ cx, cy, r, active, color = 'rgba(160,210,255,1)' }: {
   );
 }
 
+// Media entry planet — optional thin ring for articles/videos
+function MediaPlanet({ px, py, r, color, hasRing }: {
+  px: number; py: number; r: number; color: string; hasRing: boolean;
+}) {
+  return (
+    <g>
+      <circle cx={px} cy={py} r={r + 4} fill={color} opacity={0.10} />
+      <circle cx={px} cy={py} r={r + 2} fill={color} opacity={0.18} />
+      <circle cx={px} cy={py} r={r} fill={color} opacity={0.90} />
+      <circle cx={px - r * 0.28} cy={py - r * 0.28} r={r * 0.32} fill="white" opacity={0.50} />
+      {hasRing && (
+        <>
+          <ellipse cx={px} cy={py} rx={r * 1.9} ry={r * 0.42}
+            fill="none" stroke={color} strokeWidth={1.0} opacity={0.45} />
+          <ellipse cx={px} cy={py} rx={r * 1.55} ry={r * 0.33}
+            fill="none" stroke={color} strokeWidth={0.7} opacity={0.30} />
+        </>
+      )}
+    </g>
+  );
+}
+
 // Glowing planet dot
 function Planet({ px, py, r, color, glow = true }: {
   px: number; py: number; r: number; color: string; glow?: boolean;
@@ -92,6 +127,7 @@ export function SolarSystemNode({
   onSunClick,
   onStoryClick,
   onPlanetClick,
+  onMediaEntryClick,
   onDragStart,
 }: SolarSystemNodeProps) {
   const storyCount = person.stories.length;
@@ -238,18 +274,44 @@ export function SolarSystemNode({
         </g>
       )}
 
-      {/* ── Far orbit: media planet ── */}
-      <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlanetClick('media'); }}>
-        {(() => {
-          const { px, py } = planetPos(x, y, ORBITS.far.radius, Math.PI / 5);
+      {/* ── Far orbit: individual media entry planets ── */}
+      {hasMedia ? (() => {
+        const entries = person.mediaEntries ?? [];
+        const count = entries.length;
+        return entries.map((entry, i) => {
+          const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+          const { px, py } = planetPos(x, y, ORBITS.far.radius, angle);
+          const { color, hasRing } = getMediaEntryColor(entry, seasonalCalendar);
           return (
-            <>
+            <g key={entry.id} className="cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); onMediaEntryClick(entry); }}>
               <circle cx={px} cy={py} r={18} fill="transparent" />
-              <Planet px={px} py={py} r={ORBITS.far.planetRadius} color={farColor} glow={hasMedia} />
-            </>
+              <MediaPlanet px={px} py={py} r={ORBITS.far.planetRadius} color={color} hasRing={hasRing} />
+              {showLabels && (
+                <text x={px} y={py - 12} textAnchor="middle"
+                  fill="rgba(255,255,255,0.55)" fontSize={7} fontWeight={400}>
+                  {entry.type === 'photo'
+                    ? (entry.caption?.length > 8 ? entry.caption.slice(0, 7) + '…' : entry.caption || 'photo')
+                    : (entry.title.length > 8 ? entry.title.slice(0, 7) + '…' : entry.title)}
+                </text>
+              )}
+            </g>
           );
-        })()}
-      </g>
+        });
+      })() : (
+        <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlanetClick('media'); }}>
+          {(() => {
+            const { px, py } = planetPos(x, y, ORBITS.far.radius, Math.PI / 5);
+            return (
+              <>
+                <circle cx={px} cy={py} r={18} fill="transparent" />
+                <circle cx={px} cy={py} r={ORBITS.far.planetRadius}
+                  fill="none" stroke="rgba(180,140,255,0.20)" strokeWidth={0.8} strokeDasharray="2 4" />
+              </>
+            );
+          })()}
+        </g>
+      )}
 
       {/* ── Central sun — layered glow like goodgraphic.jpg ── */}
       <g

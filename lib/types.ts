@@ -1,5 +1,49 @@
 export type Visibility = 'public' | 'family' | 'restricted' | 'gendered';
 
+// ── Media entry types ────────────────────────────────────────────────────────
+
+export interface JournalEntry {
+  id: string;
+  type: 'journal';
+  title: string;
+  text: string;
+  date: string;                  // YYYY-MM-DD
+  seasonTag: string;             // season id or 'unsure'
+  useIndigenousCalendar: boolean;
+  createdAt: string;
+}
+
+export interface PhotoEntry {
+  id: string;
+  type: 'photo';
+  caption: string;
+  imageData: string;             // base64 data URL
+  date: string;
+  seasonTag: string;
+  useIndigenousCalendar: boolean;
+  createdAt: string;
+}
+
+export interface ArticleEntry {
+  id: string;
+  type: 'article';
+  title: string;
+  url: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface VideoEntry {
+  id: string;
+  type: 'video';
+  title: string;
+  url: string;
+  note: string;
+  createdAt: string;
+}
+
+export type MediaEntry = JournalEntry | PhotoEntry | ArticleEntry | VideoEntry;
+
 export type RelationshipType =
   | 'mother'
   | 'father'
@@ -55,6 +99,7 @@ export interface Person {
   regionSelectorValue: string;
   isDeceased: boolean;
   stories: Story[];
+  mediaEntries?: MediaEntry[];
   visibility: Visibility;
   lastUpdated: string; // ISO date
   position: { x: number; y: number };
@@ -136,4 +181,6 @@ export type AppAction =
   | { type: 'DELETE_RELATIONSHIP'; payload: string }
   | { type: 'ADD_STORY'; payload: { personId: string; story: Story } }
   | { type: 'UPDATE_STORY'; payload: { personId: string; story: Story } }
-  | { type: 'DELETE_STORY'; payload: { personId: string; storyId: string } };
+  | { type: 'DELETE_STORY'; payload: { personId: string; storyId: string } }
+  | { type: 'ADD_MEDIA_ENTRY'; payload: { personId: string; entry: MediaEntry } }
+  | { type: 'DELETE_MEDIA_ENTRY'; payload: { personId: string; entryId: string } };

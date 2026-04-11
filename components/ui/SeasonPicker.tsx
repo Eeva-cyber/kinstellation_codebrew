@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '@/lib/store/AppContext';
 
 interface SeasonPickerProps {
@@ -11,7 +12,9 @@ interface SeasonPickerProps {
 export function SeasonPicker({ value, onChange }: SeasonPickerProps) {
   const { state } = useApp();
   const [open, setOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const seasons = state.seasonalCalendar?.seasons ?? [];
 
   const selected = seasons.find((s) => s.id === value);
@@ -28,6 +31,14 @@ export function SeasonPicker({ value, onChange }: SeasonPickerProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
+  function handleToggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      setDropdownRect(btnRef.current.getBoundingClientRect());
+    }
+    setOpen((o) => !o);
+  }
+
   function handleSelect(id: string) {
     onChange(id);
     setOpen(false);
@@ -36,14 +47,15 @@ export function SeasonPicker({ value, onChange }: SeasonPickerProps) {
   return (
     <div ref={containerRef} className="relative">
       <label className="block text-xs text-white/30 mb-1.5">
-        Which season does this story belong to?
+        Which season does this belong to?
       </label>
 
       {/* Trigger */}
       <button
+        ref={btnRef}
         type="button"
         onMouseDown={(e) => e.stopPropagation()}
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg
           bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.12]
           text-sm text-white/70 transition-colors text-left focus:outline-none"
@@ -70,13 +82,20 @@ export function SeasonPicker({ value, onChange }: SeasonPickerProps) {
         </svg>
       </button>
 
-      {/* Dropdown */}
-      {open && (
+      {/* Dropdown — rendered in a portal so overflow:hidden ancestors don't clip it */}
+      {open && dropdownRect && typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute z-50 top-full mt-1 w-full rounded-xl overflow-hidden shadow-2xl"
           style={{
+            position: 'fixed',
+            top: dropdownRect.bottom + 4,
+            left: dropdownRect.left,
+            width: dropdownRect.width,
+            zIndex: 9999,
             background: 'rgba(8, 11, 20, 0.97)',
             border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '0.75rem',
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -107,7 +126,6 @@ export function SeasonPicker({ value, onChange }: SeasonPickerProps) {
                   ? 'bg-white/[0.07] text-white/80'
                   : 'text-white/40 hover:bg-white/[0.04] hover:text-white/65'}`}
             >
-              {/* Color swatch with subtle glow */}
               <span className="relative shrink-0">
                 <span
                   className="block w-2 h-2 rounded-full"
@@ -128,7 +146,8 @@ export function SeasonPicker({ value, onChange }: SeasonPickerProps) {
               )}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Selected season hint */}

@@ -23,6 +23,7 @@ import { SolarSystemNode } from './SolarSystemNode';
 import { SeasonIndicator } from './SeasonIndicator';
 import { SeasonWheel } from './SeasonWheel';
 import { PersonPanel } from '@/components/panels/PersonPanel';
+import { MediaEntryView } from '@/components/panels/MediaEntryView';
 import { StoryPanel } from '@/components/panels/StoryPanel';
 import { AddConnectionPanel } from '@/components/panels/AddConnectionPanel';
 import { StoriesRiverPanel } from '@/components/panels/StoriesRiverPanel';
@@ -30,7 +31,7 @@ import { QuickAddModal } from '@/components/panels/QuickAddModal';
 import { TimelinePanel } from '@/components/panels/TimelinePanel';
 import { StoryPopup } from '@/components/ui/StoryPopup';
 import { WordTooltip } from '@/components/ui/WordTooltip';
-import type { Person, Story } from '@/lib/types';
+import type { Person, Story, MediaEntry } from '@/lib/types';
 
 type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | 'timeline' | null;
 
@@ -57,6 +58,7 @@ export function SkyCanvas() {
   const [personPanelFocus, setPersonPanelFocus] = useState<'identity' | 'stories' | 'connections' | undefined>(undefined);
   const [dragging, setDragging] = useState<string | null>(null);
   const [activeStory, setActiveStory] = useState<{ story: Story; personName: string; personId: string } | null>(null);
+  const [activeMediaEntry, setActiveMediaEntry] = useState<{ entry: MediaEntry; person: Person } | null>(null);
   const [impactScores, setImpactScores] = useState<Record<string, number>>({});
   const scoringInFlight = useRef<Set<string>>(new Set());
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -690,6 +692,7 @@ export function SkyCanvas() {
                 onSunClick={() => handleSunClick(person.id)}
                 onStoryClick={(story) => setActiveStory({ story, personName: person.displayName, personId: person.id })}
                 onPlanetClick={(action) => handlePlanetClick(person.id, action)}
+                onMediaEntryClick={(entry) => setActiveMediaEntry({ entry, person })}
                 onDragStart={handleDragStart(person.id)}
               />
             );
@@ -951,6 +954,7 @@ export function SkyCanvas() {
           onClose={handleClosePanel}
           onAddStory={(personId) => handleOpenStoryPanel(personId)}
           onAddConnection={(personId) => handleOpenConnectionPanel(personId)}
+          onMediaEntryClick={(entry) => setActiveMediaEntry({ entry, person: activePerson })}
         />
       )}
       {activePanel === 'story' && activePerson && (
@@ -981,6 +985,15 @@ export function SkyCanvas() {
         <TimelinePanel
           onClose={handleClosePanel}
           onStoryClick={(personId) => handleSunClick(personId)}
+        />
+      )}
+
+      {/* Media entry full-screen overlay */}
+      {activeMediaEntry && (
+        <MediaEntryView
+          entry={activeMediaEntry.entry}
+          person={activeMediaEntry.person}
+          onClose={() => setActiveMediaEntry(null)}
         />
       )}
 

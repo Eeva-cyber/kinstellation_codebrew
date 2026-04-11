@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '@/lib/store/AppContext';
-import type { Person, Visibility, Story, StoryType } from '@/lib/types';
+import type {
+  Person, Visibility, Story, StoryType,
+  MediaEntry, PhotoEntry, ArticleEntry, VideoEntry,
+} from '@/lib/types';
 import { SeasonPicker } from '@/components/ui/SeasonPicker';
 import { WordTooltip } from '@/components/ui/WordTooltip';
 import { regions } from '@/lib/data/regions';
@@ -14,37 +17,124 @@ interface PersonPanelProps {
   onClose: () => void;
   onAddStory: (personId: string) => void;
   onAddConnection: (personId: string) => void;
+  onMediaEntryClick?: (entry: MediaEntry) => void;
 }
 
-type Section = 'identity' | 'stories' | 'connections';
+type Tab = 'profile' | 'connections' | 'media';
+type MediaSection = 'photos' | 'articles' | 'videos';
 
-export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory, onAddConnection }: PersonPanelProps) {
+// ── localStorage size warning ────────────────────────────────────────────────
+const PHOTO_WARN_BYTES = 3 * 1024 * 1024; // 3 MB
+
+function getPhotoStorageUsed(person: Person): number {
+  return (person.mediaEntries ?? [])
+    .filter((e): e is PhotoEntry => e.type === 'photo')
+    .reduce((sum, e) => sum + (e.imageData?.length ?? 0), 0);
+}
+
+// ── Date / season helpers ────────────────────────────────────────────────────
+function DateSeasonInput({
+  date, setDate, seasonTag, setSeasonTag,
+  useIndigenous, setUseIndigenous,
+}: {
+  date: string; setDate: (v: string) => void;
+  seasonTag: string; setSeasonTag: (v: string) => void;
+  useIndigenous: boolean; setUseIndigenous: (v: boolean) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {/* Toggle */}
+      <div className="flex items-center gap-1 p-0.5 rounded-lg w-fit"
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        {(['indigenous', 'western'] as const).map((mode) => {
+          const active = mode === 'indigenous' ? useIndigenous : !useIndigenous;
+          return (
+            <button key={mode} type="button"
+              onClick={() => setUseIndigenous(mode === 'indigenous')}
+              className="px-3 py-1 rounded text-xs transition-all"
+              style={{
+                background: active ? 'rgba(212,164,84,0.2)' : 'transparent',
+                color: active ? 'rgba(212,164,84,0.9)' : 'rgba(255,255,255,0.3)',
+                border: active ? '1px solid rgba(212,164,84,0.3)' : '1px solid transparent',
+              }}>
+              {mode === 'indigenous' ? 'Seasonal' : 'Western'}
+            </button>
+          );
+        })}
+      </div>
+
+      {useIndigenous ? (
+        <SeasonPicker value={seasonTag} onChange={setSeasonTag} />
+      ) : (
+        <div>
+          <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              color: 'rgba(255,255,255,0.7)',
+              colorScheme: 'dark',
+            }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Panel ───────────────────────────────────────────────────────────────
+export function PersonPanel({
+  person, isSelf, focusSection, onClose,
+  onAddStory, onAddConnection, onMediaEntryClick,
+}: PersonPanelProps) {
   const { state, dispatch } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [displayName, setDisplayName] = useState(person.displayName);
-  const [indigenousName, setIndigenousName] = useState(person.indigenousName ?? '');
-  const [skinName, setSkinName] = useState(person.skinName ?? '');
-  const [moiety, setMoiety] = useState(person.moiety ?? '');
-  const [mob, setMob] = useState(person.mob ?? '');
-  const [countryLanguageGroup, setCountryLanguageGroup] = useState(person.countryLanguageGroup ?? '');
-  const [isDeceased, setIsDeceased] = useState(person.isDeceased);
-  const [visibility, setVisibility] = useState<Visibility>(person.visibility);
-
-  // Collapsible sections
-  const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set(focusSection ? [focusSection] : ['identity']),
+  const [activeTab, setActiveTab] = useState<Tab>(
+    focusSection === 'connections' ? 'connections' : 'profile',
   );
 
-  // Inline quick story form
-  const [showQuickStory, setShowQuickStory] = useState(false);
-  const [quickStoryTitle, setQuickStoryTitle] = useState('');
+  // ── Profile state ──────────────────────────────────────────────────────────
+  const [displayName, setDisplayName]       = useState(person.displayName);
+  const [indigenousName, setIndigenousName] = useState(person.indigenousName ?? '');
+  const [skinName, setSkinName]             = useState(person.skinName ?? '');
+  const [moiety, setMoiety]                 = useState(person.moiety ?? '');
+  const [mob, setMob]                       = useState(person.mob ?? '');
+  const [countryLanguageGroup, setCountryLanguageGroup] = useState(person.countryLanguageGroup ?? '');
+  const [isDeceased, setIsDeceased]         = useState(person.isDeceased);
+  const [visibility, setVisibility]         = useState<Visibility>(person.visibility);
+  const [confirmDelete, setConfirmDelete]   = useState(false);
+
+  // Quick story
+  const [showQuickStory, setShowQuickStory]     = useState(false);
+  const [quickStoryTitle, setQuickStoryTitle]   = useState('');
   const [quickStoryContent, setQuickStoryContent] = useState('');
-  const [quickStoryType, setQuickStoryType] = useState<StoryType>('text');
+  const [quickStoryType]                        = useState<StoryType>('text');
   const [quickStorySeason, setQuickStorySeason] = useState('unsure');
 
-  // Delete confirmation
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  // ── Media state ────────────────────────────────────────────────────────────
+  const [openMediaSections, setOpenMediaSections] = useState<Set<MediaSection>>(new Set(['photos']));
+
+  // Photo form
+  const [showPhotoForm, setShowPhotoForm]       = useState(false);
+  const [pCaption, setPCaption]                 = useState('');
+  const [pImageData, setPImageData]             = useState('');
+  const [pDate, setPDate]                       = useState('');
+  const [pSeason, setPSeason]                   = useState('unsure');
+  const [pUseIndigenous, setPUseIndigenous]     = useState(true);
+  const fileInputRef                            = useRef<HTMLInputElement>(null);
+
+  // Article form
+  const [showArticleForm, setShowArticleForm]   = useState(false);
+  const [aTitle, setATitle]                     = useState('');
+  const [aUrl, setAUrl]                         = useState('');
+  const [aNote, setANote]                       = useState('');
+
+  // Video form
+  const [showVideoForm, setShowVideoForm]       = useState(false);
+  const [vTitle, setVTitle]                     = useState('');
+  const [vUrl, setVUrl]                         = useState('');
+  const [vNote, setVNote]                       = useState('');
 
   // Invite link
   const [inviteLink, setInviteLink] = useState('');
@@ -53,12 +143,17 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
 
   const moietyNames = state.kinshipTemplate?.moietyNames;
   const sectionNames = state.kinshipTemplate?.sectionNames;
-
   const personRelationships = state.relationships.filter(
     (r) => r.fromPersonId === person.id || r.toPersonId === person.id,
   );
+  const mediaEntries = person.mediaEntries ?? [];
+  const photos    = mediaEntries.filter((e): e is PhotoEntry    => e.type === 'photo');
+  const articles  = mediaEntries.filter((e): e is ArticleEntry  => e.type === 'article');
+  const videos    = mediaEntries.filter((e): e is VideoEntry    => e.type === 'video');
 
-  // Scroll to focused section on mount
+  const photoStorageUsed = getPhotoStorageUsed(person);
+  const photoStorageWarning = photoStorageUsed > PHOTO_WARN_BYTES;
+
   useEffect(() => {
     if (focusSection && scrollRef.current) {
       const el = scrollRef.current.querySelector(`[data-section="${focusSection}"]`);
@@ -66,15 +161,15 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
     }
   }, [focusSection]);
 
-  function toggleSection(section: Section) {
-    setOpenSections((prev) => {
+  function toggleMediaSection(s: MediaSection) {
+    setOpenMediaSections((prev) => {
       const next = new Set(prev);
-      if (next.has(section)) next.delete(section);
-      else next.add(section);
+      if (next.has(s)) next.delete(s); else next.add(s);
       return next;
     });
   }
 
+  // ── Handlers ──────────────────────────────────────────────────────────────
   function handleSave() {
     if (!displayName.trim()) return;
     dispatch({
@@ -87,17 +182,14 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
         moiety: moiety || undefined,
         mob: mob.trim() || undefined,
         countryLanguageGroup: countryLanguageGroup.trim() || undefined,
-        isDeceased,
-        visibility,
+        isDeceased, visibility,
         lastUpdated: new Date().toISOString(),
       },
     });
   }
 
   function handleQuickStorySave() {
-    if (!quickStoryTitle.trim()) return;
-    if (quickStoryType === 'text' && !quickStoryContent.trim()) return;
-
+    if (!quickStoryTitle.trim() || !quickStoryContent.trim()) return;
     const story: Story = {
       id: crypto.randomUUID(),
       title: quickStoryTitle.trim(),
@@ -109,12 +201,62 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
       visibility: 'family',
       linkedPersonIds: [person.id],
     };
-
     dispatch({ type: 'ADD_STORY', payload: { personId: person.id, story } });
-    setQuickStoryTitle('');
-    setQuickStoryContent('');
-    setQuickStorySeason('unsure');
+    setQuickStoryTitle(''); setQuickStoryContent(''); setQuickStorySeason('unsure');
     setShowQuickStory(false);
+  }
+
+  const handlePhotoFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => setPImageData(e.target?.result as string ?? '');
+    reader.readAsDataURL(file);
+  }, []);
+
+  function handleAddPhoto() {
+    if (!pImageData) return;
+    const entry: PhotoEntry = {
+      id: crypto.randomUUID(),
+      type: 'photo',
+      caption: pCaption.trim(),
+      imageData: pImageData,
+      date: pUseIndigenous ? '' : pDate,
+      seasonTag: pUseIndigenous ? pSeason : 'unsure',
+      useIndigenousCalendar: pUseIndigenous,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'ADD_MEDIA_ENTRY', payload: { personId: person.id, entry } });
+    setPCaption(''); setPImageData(''); setPDate(''); setPSeason('unsure');
+    setShowPhotoForm(false);
+  }
+
+  function handleAddArticle() {
+    if (!aTitle.trim() || !aUrl.trim()) return;
+    const entry: ArticleEntry = {
+      id: crypto.randomUUID(),
+      type: 'article',
+      title: aTitle.trim(),
+      url: aUrl.trim(),
+      note: aNote.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'ADD_MEDIA_ENTRY', payload: { personId: person.id, entry } });
+    setATitle(''); setAUrl(''); setANote('');
+    setShowArticleForm(false);
+  }
+
+  function handleAddVideo() {
+    if (!vTitle.trim() || !vUrl.trim()) return;
+    const entry: VideoEntry = {
+      id: crypto.randomUUID(),
+      type: 'video',
+      title: vTitle.trim(),
+      url: vUrl.trim(),
+      note: vNote.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'ADD_MEDIA_ENTRY', payload: { personId: person.id, entry } });
+    setVTitle(''); setVUrl(''); setVNote('');
+    setShowVideoForm(false);
   }
 
   function getRelatedPersonName(rel: typeof personRelationships[0]) {
@@ -122,16 +264,15 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
     return state.persons.find((p) => p.id === otherId)?.displayName ?? 'Unknown';
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
-      <div
-        ref={scrollRef}
-        className="h-full backdrop-blur-xl panel-scroll"
-        style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}
-      >
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-5">
+    <div className="absolute top-0 right-0 h-full z-30 animate-slide-right select-auto" style={{ width: '28rem' }}>
+      <div ref={scrollRef} className="h-full flex flex-col backdrop-blur-xl panel-scroll"
+        style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}>
+
+        {/* ── Header ── */}
+        <div className="flex-shrink-0 px-6 pt-6 pb-0">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-base font-medium tracking-wide" style={{ color: 'rgba(212,164,84,0.9)' }}>
                 {person.displayName}
@@ -140,240 +281,147 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(139,92,246,0.6)' }}>{person.indigenousName}</p>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="text-lg leading-none transition-colors"
-              style={{ color: 'rgba(255,255,255,0.3)' }}
-              aria-label="Close"
-            >
+            <button onClick={onClose} className="text-lg leading-none transition-colors"
+              style={{ color: 'rgba(255,255,255,0.3)' }} aria-label="Close">
               &times;
             </button>
           </div>
 
-          {/* Deceased warning */}
           {isDeceased && (
-            <div className="mb-5 px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-white/45 leading-relaxed">
-              Aboriginal and Torres Strait Islander peoples are advised that
-              this profile may contain the name and image of a deceased person.
+            <div className="mb-4 px-3 py-2.5 rounded-lg text-xs leading-relaxed"
+              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
+              Aboriginal and Torres Strait Islander peoples are advised that this profile may contain
+              the name and image of a deceased person.
             </div>
           )}
 
-          {/* === Identity section === */}
-          <CollapsibleSection
-            title="Identity"
-            section="identity"
-            count={null}
-            open={openSections.has('identity')}
-            onToggle={() => toggleSection('identity')}
-          >
-            <div className="space-y-3">
-              <Field label="Name" value={displayName} onChange={setDisplayName} placeholder="Display name" />
-              <Field label="Indigenous name" value={indigenousName} onChange={setIndigenousName} placeholder="Name in language" />
-
-              {sectionNames ? (
-                <div>
-                  <label className="block text-xs text-white/30 mb-1">
-                    <WordTooltip term="Skin name">Skin name</WordTooltip>
-                  </label>
-                  <select
-                    value={skinName}
-                    onChange={(e) => setSkinName(e.target.value)}
-                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none focus:border-white/[0.15]"
-                  >
-                    <option value="">Select...</option>
-                    {sectionNames.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <Field label="Skin name" value={skinName} onChange={setSkinName} placeholder="Skin name" />
-              )}
-
-              {moietyNames && (
-                <div>
-                  <label className="block text-xs text-white/30 mb-1">
-                    <WordTooltip term="Moiety">Moiety</WordTooltip>
-                  </label>
-                  <div className="flex gap-2">
-                    {moietyNames.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setMoiety(moiety === m ? '' : m)}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-all ${
-                          moiety === m
-                            ? 'border-white/20 bg-white/[0.08] text-white/80'
-                            : 'border-white/[0.04] bg-white/[0.02] text-white/40 hover:bg-white/[0.04]'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <LanguageGroupCombobox value={mob} onChange={setMob} />
-              <Field label="Country / Language group" value={countryLanguageGroup} onChange={setCountryLanguageGroup} placeholder="e.g. Noongar Country, Arnhem Land" />
-
-              <label className="flex items-center gap-2 text-xs text-white/40 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isDeceased}
-                  onChange={(e) => setIsDeceased(e.target.checked)}
-                  className="rounded border-white/10"
-                />
-                This person is deceased
-              </label>
-
-              <div>
-                <label className="block text-xs text-white/30 mb-1">Visibility</label>
-                <select
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value as Visibility)}
-                  className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none focus:border-white/[0.15]"
-                >
-                  <option value="public">Public</option>
-                  <option value="family">Family only</option>
-                  <option value="restricted">Restricted</option>
-                  <option value="gendered">Gendered (men&apos;s/women&apos;s business)</option>
-                </select>
-              </div>
-
-              <button
-                onClick={handleSave}
-                disabled={!displayName.trim()}
-                className="w-full py-2 rounded-lg text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}
-              >
-                Save
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 rounded-xl mb-0"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(88,28,135,0.25)' }}>
+            {(['profile', 'connections', 'media'] as Tab[]).map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className="flex-1 py-2 rounded-lg text-xs font-medium transition-all capitalize"
+                style={{
+                  background: activeTab === tab ? 'rgba(88,28,135,0.5)' : 'transparent',
+                  color: activeTab === tab ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.35)',
+                  border: activeTab === tab ? '1px solid rgba(212,164,84,0.25)' : '1px solid transparent',
+                }}>
+                {tab}
               </button>
-            </div>
-          </CollapsibleSection>
+            ))}
+          </div>
+        </div>
 
-          {/* === Stories section === */}
-          <CollapsibleSection
-            title="Stories"
-            section="stories"
-            count={person.stories.length}
-            open={openSections.has('stories')}
-            onToggle={() => toggleSection('stories')}
-          >
-            <div className="space-y-2">
-              {person.stories.length === 0 && !showQuickStory && (
-                <p className="text-xs text-white/20 italic">
-                  No stories yet. This star is waiting to be illuminated.
-                </p>
-              )}
+        {/* ── Tab content (scrollable) ── */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
 
-              {person.stories.map((story) => (
-                <div
-                  key={story.id}
-                  className="px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]"
-                >
-                  <span className="text-sm text-white/65">{story.title}</span>
-                  <span className="text-xs text-white/25 ml-2 capitalize">{story.type}</span>
+          {/* ════ PROFILE TAB ════ */}
+          {activeTab === 'profile' && (
+            <div className="space-y-0">
+              {/* Identity */}
+              <MediaSubSection title="Identity" open count={null}>
+                <div className="space-y-3">
+                  <Field label="Name" value={displayName} onChange={setDisplayName} placeholder="Display name" />
+                  <Field label="Indigenous name" value={indigenousName} onChange={setIndigenousName} placeholder="Name in language" />
+                  {sectionNames ? (
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        <WordTooltip term="Skin name">Skin name</WordTooltip>
+                      </label>
+                      <select value={skinName} onChange={(e) => setSkinName(e.target.value)}
+                        className="w-full rounded-lg px-3 py-2.5 text-sm focus:outline-none"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }}>
+                        <option value="">Select...</option>
+                        {sectionNames.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  ) : (
+                    <Field label="Skin name" value={skinName} onChange={setSkinName} placeholder="Skin name" />
+                  )}
+                  {moietyNames && (
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        <WordTooltip term="Moiety">Moiety</WordTooltip>
+                      </label>
+                      <div className="flex gap-2">
+                        {moietyNames.map((m) => (
+                          <button key={m} type="button"
+                            onClick={() => setMoiety(moiety === m ? '' : m)}
+                            className="flex-1 px-3 py-2 rounded-lg border text-xs transition-all"
+                            style={{
+                              background: moiety === m ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.02)',
+                              border: moiety === m ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.05)',
+                              color: moiety === m ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)',
+                            }}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <LanguageGroupCombobox value={mob} onChange={setMob} />
+                  <Field label="Country / Language group" value={countryLanguageGroup}
+                    onChange={setCountryLanguageGroup} placeholder="e.g. Noongar Country, Arnhem Land" />
+                  <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <input type="checkbox" checked={isDeceased} onChange={(e) => setIsDeceased(e.target.checked)}
+                      className="rounded border-white/10" />
+                    This person is deceased
+                  </label>
+                  <button onClick={handleSave} disabled={!displayName.trim()}
+                    className="w-full py-2 rounded-lg text-sm transition-all disabled:opacity-30"
+                    style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}>
+                    Save
+                  </button>
                 </div>
-              ))}
+              </MediaSubSection>
 
-              {/* Quick story inline form */}
-              {showQuickStory ? (
-                <div className="mt-2 p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-3">
-                  <input
-                    type="text"
-                    value={quickStoryTitle}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setQuickStoryTitle(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v);
-                    }}
-                    placeholder="Story title"
-                    autoFocus
-                    autoCapitalize="sentences"
-                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15]"
-                  />
-                  <textarea
-                    value={quickStoryContent}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setQuickStoryContent(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v);
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    placeholder="Tell the story..."
-                    rows={4}
-                    autoCapitalize="sentences"
-                    className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] resize-none"
-                  />
-                  <SeasonPicker value={quickStorySeason} onChange={setQuickStorySeason} />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowQuickStory(false)}
-                      className="flex-1 py-2 rounded-lg text-sm transition-all"
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.32)' }}
-                    >
+              {/* Delete */}
+              <div className="pt-5 mt-5" style={{ borderTop: '1px solid rgba(88,28,135,0.2)' }}>
+                {confirmDelete ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: 'rgba(248,113,113,0.6)' }}>Remove {person.displayName}?</span>
+                    <button onClick={() => { dispatch({ type: 'DELETE_PERSON', payload: person.id }); onClose(); }}
+                      className="text-xs px-2 py-1 rounded transition-colors"
+                      style={{ color: 'rgba(248,113,113,0.7)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                      Remove
+                    </button>
+                    <button onClick={() => setConfirmDelete(false)} className="text-xs transition-colors"
+                      style={{ color: 'rgba(255,255,255,0.3)' }}>
                       Cancel
                     </button>
-                    <button
-                      onClick={handleQuickStorySave}
-                      disabled={!quickStoryTitle.trim() || !quickStoryContent.trim()}
-                      className="flex-1 py-2 rounded-lg text-sm transition-all disabled:opacity-30"
-                      style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}
-                    >
-                      Save story
-                    </button>
                   </div>
-                </div>
-              ) : (
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={() => setShowQuickStory(true)}
-                    className="flex-1 text-sm text-white/35 hover:text-white/55 transition-colors py-2 rounded-lg border border-white/[0.04] hover:bg-white/[0.03]"
-                  >
-                    + Quick story
+                ) : (
+                  <button onClick={() => setConfirmDelete(true)} className="text-xs transition-colors"
+                    style={{ color: 'rgba(248,113,113,0.4)' }}>
+                    Remove from sky
                   </button>
-                  <button
-                    onClick={() => onAddStory(person.id)}
-                    className="flex-1 text-sm text-white/35 hover:text-white/55 transition-colors py-2 rounded-lg border border-white/[0.04] hover:bg-white/[0.03]"
-                  >
-                    + Full story
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </CollapsibleSection>
+          )}
 
-          {/* === Connections section === */}
-          <CollapsibleSection
-            title="Connections"
-            section="connections"
-            count={personRelationships.length}
-            open={openSections.has('connections')}
-            onToggle={() => toggleSection('connections')}
-          >
-            <div className="space-y-2">
+          {/* ════ CONNECTIONS TAB ════ */}
+          {activeTab === 'connections' && (
+            <div className="space-y-2" data-section="connections">
               {personRelationships.length === 0 ? (
-                <p className="text-xs text-white/20 italic">
+                <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.2)' }}>
                   No connections yet. Empty space in the sky — knowledge waiting to be discovered.
                 </p>
               ) : (
                 personRelationships.map((rel) => (
-                  <div
-                    key={rel.id}
-                    className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.04] text-xs flex items-center justify-between"
-                  >
-                    <span className="text-white/50">{getRelatedPersonName(rel)}</span>
-                    <span className="text-white/25">{rel.relationshipType.replace(/_/g, ' ')}</span>
+                  <div key={rel.id} className="px-3 py-2 rounded-lg flex items-center justify-between"
+                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>{getRelatedPersonName(rel)}</span>
+                    <span className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>{rel.relationshipType.replace(/_/g, ' ')}</span>
                   </div>
                 ))
               )}
-              <button
-                onClick={() => onAddConnection(person.id)}
-                className="text-xs text-white/30 hover:text-white/50 transition-colors py-1"
-              >
+              <button onClick={() => onAddConnection(person.id)}
+                className="text-xs transition-colors py-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
                 + Add connection
               </button>
             </div>
-          </CollapsibleSection>
+          )}
 
           {/* Invite link (self-star only) */}
           {isSelf && (
@@ -450,62 +498,297 @@ export function PersonPanel({ person, isSelf, focusSection, onClose, onAddStory,
               </button>
             )}
           </div>
+
+          {/* ════ MEDIA TAB ════ */}
+          {activeTab === 'media' && (
+            <div className="space-y-1">
+              {photoStorageWarning && (
+                <div className="mb-3 px-3 py-2 rounded-lg text-xs"
+                  style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', color: 'rgba(251,191,36,0.8)' }}>
+                  Storage getting full. Consider removing old photos before adding more.
+                </div>
+              )}
+
+              {/* ── Stories ── */}
+              <div className="pt-4 mt-2" style={{ borderBottom: '1px solid rgba(88,28,135,0.18)', paddingBottom: '12px' }}>
+                <p className="text-xs uppercase tracking-wider mb-3 font-medium" style={{ color: 'rgba(212,164,84,0.5)' }}>
+                  Stories <span style={{ color: 'rgba(139,92,246,0.5)' }}>({person.stories.length})</span>
+                </p>
+                <div className="space-y-2">
+                  {person.stories.length === 0 && !showQuickStory && (
+                    <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                      No stories yet. This star is waiting to be illuminated.
+                    </p>
+                  )}
+                  {person.stories.map((story) => (
+                    <div key={story.id} className="px-3 py-2.5 rounded-lg"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>{story.title}</span>
+                      <span className="text-xs ml-2 capitalize" style={{ color: 'rgba(255,255,255,0.25)' }}>{story.type}</span>
+                    </div>
+                  ))}
+                  {showQuickStory ? (
+                    <div className="mt-2 p-4 rounded-lg space-y-3"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(88,28,135,0.25)' }}>
+                      <Field label="Title" value={quickStoryTitle} onChange={setQuickStoryTitle} placeholder="Story title" />
+                      <div>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Story</label>
+                        <textarea value={quickStoryContent} onChange={(e) => setQuickStoryContent(e.target.value)}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          placeholder="Tell the story..." rows={4}
+                          className="w-full rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }} />
+                      </div>
+                      <SeasonPicker value={quickStorySeason} onChange={setQuickStorySeason} />
+                      <div className="flex gap-2">
+                        <BtnSecondary onClick={() => setShowQuickStory(false)}>Cancel</BtnSecondary>
+                        <BtnPrimary onClick={handleQuickStorySave} disabled={!quickStoryTitle.trim() || !quickStoryContent.trim()}>Save</BtnPrimary>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => setShowQuickStory(true)} className="flex-1 text-sm py-2 rounded-lg transition-all"
+                        style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        + Quick story
+                      </button>
+                      <button onClick={() => onAddStory(person.id)} className="flex-1 text-sm py-2 rounded-lg transition-all"
+                        style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        + Full story
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Photos ── */}
+              <MediaSubSection title="Photos" count={photos.length}
+                open={openMediaSections.has('photos')}
+                onToggle={() => toggleMediaSection('photos')}>
+                <div className="space-y-2">
+                  {photos.length === 0 && !showPhotoForm && (
+                    <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.2)' }}>No photos yet.</p>
+                  )}
+                  {photos.map((e) => (
+                    <button key={e.id} onClick={() => onMediaEntryClick?.(e)}
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={e.imageData} alt={e.caption}
+                        className="w-10 h-10 rounded-lg object-cover shrink-0"
+                        style={{ border: '1px solid rgba(212,164,84,0.3)' }} />
+                      <div className="min-w-0">
+                        <span className="text-sm block truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                          {e.caption || 'Untitled photo'}
+                        </span>
+                        <span className="text-xs block" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                          {e.useIndigenousCalendar && e.seasonTag !== 'unsure'
+                            ? state.seasonalCalendar?.seasons.find((s) => s.id === e.seasonTag)?.name ?? e.seasonTag
+                            : e.date || 'No date'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                  {showPhotoForm ? (
+                    <div className="p-4 rounded-lg space-y-3"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(88,28,135,0.3)' }}>
+                      {/* Drop zone */}
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files[0];
+                          if (file) handlePhotoFile(file);
+                        }}
+                        className="w-full rounded-xl flex flex-col items-center justify-center py-6 cursor-pointer transition-all"
+                        style={{
+                          border: '2px dashed rgba(212,164,84,0.25)',
+                          background: pImageData ? 'transparent' : 'rgba(255,255,255,0.02)',
+                        }}>
+                        {pImageData ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={pImageData} alt="preview"
+                            className="max-h-40 rounded-lg object-contain"
+                            style={{ border: '2px solid rgba(212,164,84,0.4)' }} />
+                        ) : (
+                          <>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="mb-2" style={{ color: 'rgba(212,164,84,0.4)' }}>
+                              <path d="M4 16l4-4 4 4 4-6 4 6M2 20h20V4H2v16z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Click or drag to upload</span>
+                          </>
+                        )}
+                        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoFile(f); }} />
+                      </div>
+                      <Field label="Caption" value={pCaption} onChange={setPCaption} placeholder="Describe this photo…" />
+                      <DateSeasonInput date={pDate} setDate={setPDate}
+                        seasonTag={pSeason} setSeasonTag={setPSeason}
+                        useIndigenous={pUseIndigenous} setUseIndigenous={setPUseIndigenous} />
+                      <div className="flex gap-2">
+                        <BtnSecondary onClick={() => { setShowPhotoForm(false); setPImageData(''); }}>Cancel</BtnSecondary>
+                        <BtnPrimary onClick={handleAddPhoto} disabled={!pImageData}>Save</BtnPrimary>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowPhotoForm(true)}
+                      className="w-full text-sm py-2 rounded-lg transition-all"
+                      style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      + Add photo
+                    </button>
+                  )}
+                </div>
+              </MediaSubSection>
+
+              {/* ── Articles ── */}
+              <MediaSubSection title="Articles" count={articles.length}
+                open={openMediaSections.has('articles')}
+                onToggle={() => toggleMediaSection('articles')}>
+                <div className="space-y-2">
+                  {articles.length === 0 && !showArticleForm && (
+                    <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.2)' }}>No articles linked yet.</p>
+                  )}
+                  {articles.map((e) => (
+                    <button key={e.id} onClick={() => onMediaEntryClick?.(e)}
+                      className="w-full text-left px-3 py-2.5 rounded-lg transition-all"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span className="text-sm block" style={{ color: 'rgba(255,255,255,0.7)' }}>{e.title}</span>
+                      <span className="text-xs truncate block" style={{ color: 'rgba(255,255,255,0.2)' }}>{e.url}</span>
+                    </button>
+                  ))}
+                  {showArticleForm ? (
+                    <div className="p-4 rounded-lg space-y-3"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(88,28,135,0.3)' }}>
+                      <Field label="Title" value={aTitle} onChange={setATitle} placeholder="Article name" />
+                      <Field label="URL" value={aUrl} onChange={setAUrl} placeholder="https://…" />
+                      <div>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Your note (optional)</label>
+                        <textarea value={aNote} onChange={(e) => setANote(e.target.value)}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          placeholder="Why does this article matter to you?" rows={3}
+                          className="w-full rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }} />
+                      </div>
+                      <div className="flex gap-2">
+                        <BtnSecondary onClick={() => setShowArticleForm(false)}>Cancel</BtnSecondary>
+                        <BtnPrimary onClick={handleAddArticle} disabled={!aTitle.trim() || !aUrl.trim()}>Save</BtnPrimary>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowArticleForm(true)}
+                      className="w-full text-sm py-2 rounded-lg transition-all"
+                      style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      + Link article
+                    </button>
+                  )}
+                </div>
+              </MediaSubSection>
+
+              {/* ── Videos ── */}
+              <MediaSubSection title="Videos" count={videos.length}
+                open={openMediaSections.has('videos')}
+                onToggle={() => toggleMediaSection('videos')}>
+                <div className="space-y-2">
+                  {videos.length === 0 && !showVideoForm && (
+                    <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.2)' }}>No videos linked yet.</p>
+                  )}
+                  {videos.map((e) => (
+                    <button key={e.id} onClick={() => onMediaEntryClick?.(e)}
+                      className="w-full text-left px-3 py-2.5 rounded-lg transition-all"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span className="text-sm block" style={{ color: 'rgba(255,255,255,0.7)' }}>{e.title}</span>
+                      <span className="text-xs truncate block" style={{ color: 'rgba(255,255,255,0.2)' }}>{e.url}</span>
+                    </button>
+                  ))}
+                  {showVideoForm ? (
+                    <div className="p-4 rounded-lg space-y-3"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(88,28,135,0.3)' }}>
+                      <Field label="Title" value={vTitle} onChange={setVTitle} placeholder="Video name" />
+                      <Field label="URL" value={vUrl} onChange={setVUrl} placeholder="https://…" />
+                      <div>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Your note (optional)</label>
+                        <textarea value={vNote} onChange={(e) => setVNote(e.target.value)}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          placeholder="What's this video about?" rows={3}
+                          className="w-full rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }} />
+                      </div>
+                      <div className="flex gap-2">
+                        <BtnSecondary onClick={() => setShowVideoForm(false)}>Cancel</BtnSecondary>
+                        <BtnPrimary onClick={handleAddVideo} disabled={!vTitle.trim() || !vUrl.trim()}>Save</BtnPrimary>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowVideoForm(true)}
+                      className="w-full text-sm py-2 rounded-lg transition-all"
+                      style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      + Link video
+                    </button>
+                  )}
+                </div>
+              </MediaSubSection>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function CollapsibleSection({
-  title,
-  section,
-  count,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  section: Section;
-  count: number | null;
-  open: boolean;
-  onToggle: () => void;
+// ── Shared UI atoms ──────────────────────────────────────────────────────────
+
+function BtnPrimary({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className="flex-1 py-2 rounded-lg text-sm transition-all disabled:opacity-30"
+      style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}>
+      {children}
+    </button>
+  );
+}
+
+function BtnSecondary({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className="flex-1 py-2 rounded-lg text-sm transition-all"
+      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.32)' }}>
+      {children}
+    </button>
+  );
+}
+
+function MediaSubSection({ title, count, open, onToggle, children }: {
+  title: string; count?: number | null;
+  open?: boolean; onToggle?: () => void;
   children: React.ReactNode;
 }) {
+  const isCollapsible = !!onToggle;
+  const isOpen = open ?? true;
   return (
-    <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(88,28,135,0.25)' }} data-section={section}>
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between mb-2 group"
-      >
-        <h3 className="text-xs uppercase tracking-wider font-medium transition-colors"
-          style={{ color: open ? 'rgba(212,164,84,0.8)' : 'rgba(212,164,84,0.45)' }}>
-          {title} {count !== null && <span style={{ color: 'rgba(139,92,246,0.5)' }}>({count})</span>}
-        </h3>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          className={`transition-all ${open ? 'rotate-180' : ''}`}
-          style={{ color: 'rgba(139,92,246,0.4)' }}
-        >
-          <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        </svg>
-      </button>
-      {open && children}
+    <div className="pt-3 pb-1" style={{ borderTop: '1px solid rgba(88,28,135,0.18)' }}>
+      {isCollapsible ? (
+        <button onClick={onToggle} className="w-full flex items-center justify-between mb-2 group">
+          <span className="text-xs uppercase tracking-wider font-medium transition-colors"
+            style={{ color: isOpen ? 'rgba(212,164,84,0.75)' : 'rgba(212,164,84,0.4)' }}>
+            {title} {count !== null && count !== undefined && <span style={{ color: 'rgba(139,92,246,0.5)' }}>({count})</span>}
+          </span>
+          <svg width="12" height="12" viewBox="0 0 12 12"
+            className={`transition-all ${isOpen ? 'rotate-180' : ''}`}
+            style={{ color: 'rgba(139,92,246,0.4)' }}>
+            <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+          </svg>
+        </button>
+      ) : (
+        <p className="text-xs uppercase tracking-wider font-medium mb-2"
+          style={{ color: 'rgba(212,164,84,0.5)' }}>{title}</p>
+      )}
+      {isOpen && children}
     </div>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
+function Field({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder: string;
 }) {
   return (
     <div>
@@ -519,14 +802,14 @@ function Field({
         }}
         placeholder={placeholder}
         autoCapitalize="sentences"
+        onMouseDown={(e) => e.stopPropagation()}
         className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
       />
     </div>
   );
 }
 
-// ─── Language / Country group combobox ───────────────────────────────────────
-// Builds a flat list from the regions data: displayName + alternateNames, grouped by state.
+// ── Language / Country group combobox ────────────────────────────────────────
 const LANGUAGE_OPTIONS: { label: string; state: string; alternates: string[] }[] = regions
   .filter((r) => r.id !== 'not_listed')
   .map((r) => ({ label: r.displayName, state: r.stateTerritory, alternates: r.alternateNames ?? [] }));
@@ -536,7 +819,6 @@ function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (
   const [search, setSearch] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Keep search input in sync when parent value changes externally
   useEffect(() => { setSearch(value); }, [value]);
 
   useEffect(() => {
@@ -548,24 +830,15 @@ function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (
   }, []);
 
   const filtered = search.trim()
-    ? LANGUAGE_OPTIONS.filter(
-        (o) =>
-          o.label.toLowerCase().includes(search.toLowerCase()) ||
-          o.alternates.some((a) => a.toLowerCase().includes(search.toLowerCase())),
-      )
+    ? LANGUAGE_OPTIONS.filter((o) =>
+        o.label.toLowerCase().includes(search.toLowerCase()) ||
+        o.alternates.some((a) => a.toLowerCase().includes(search.toLowerCase())))
     : LANGUAGE_OPTIONS;
 
-  const hasExactMatch = LANGUAGE_OPTIONS.some(
-    (o) => o.label.toLowerCase() === search.trim().toLowerCase(),
-  );
+  const hasExactMatch = LANGUAGE_OPTIONS.some((o) => o.label.toLowerCase() === search.trim().toLowerCase());
 
-  function select(label: string) {
-    onChange(label);
-    setSearch(label);
-    setOpen(false);
-  }
+  function select(label: string) { onChange(label); setSearch(label); setOpen(false); }
 
-  // Group filtered results by state
   const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, o) => {
     const key = o.state || 'Other';
     if (!acc[key]) acc[key] = [];
@@ -575,7 +848,7 @@ function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (
 
   return (
     <div ref={ref} className="relative">
-      <label className="block text-xs text-white/35 mb-1.5">Mob / Language group</label>
+      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Mob / Language group</label>
       <div className="relative">
         <input
           type="text"
@@ -602,58 +875,28 @@ function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (
           </svg>
         </button>
       </div>
-
       {open && (
-        <div
-          className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-[70]"
-          style={{
-            background: 'rgba(8,4,22,0.98)',
-            border: '1px solid rgba(88,28,135,0.4)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            maxHeight: 220,
-            overflowY: 'auto',
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(139,92,246,0.3) transparent',
-          }}
-        >
-          {/* Custom entry option if no exact match */}
+        <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-[70]"
+          style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(88,28,135,0.4)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', maxHeight: 220, overflowY: 'auto' }}>
           {search.trim() && !hasExactMatch && (
-            <button
-              type="button"
-              onClick={() => select(search.trim())}
+            <button type="button" onClick={() => select(search.trim())}
               className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] border-b"
-              style={{ color: 'rgba(212,164,84,0.85)', borderColor: 'rgba(88,28,135,0.25)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(88,28,135,0.2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
+              style={{ color: 'rgba(212,164,84,0.85)', borderColor: 'rgba(88,28,135,0.25)' }}>
               <span style={{ color: 'rgba(212,164,84,0.45)' }}>+</span>
               Use &quot;{search.trim()}&quot;
             </button>
           )}
-
-          {filtered.length === 0 && !search.trim() && (
-            <p className="px-3 py-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>Start typing to search…</p>
-          )}
-
           {Object.entries(grouped).map(([state, opts]) => (
             <div key={state}>
-              <div className="px-3 py-1 sticky top-0" style={{ background: 'rgba(8,4,22,0.95)', color: 'rgba(139,92,246,0.5)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              <div className="px-3 py-1 sticky top-0"
+                style={{ background: 'rgba(8,4,22,0.95)', color: 'rgba(139,92,246,0.5)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 {state}
               </div>
               {opts.map((o) => (
-                <button
-                  key={o.label}
-                  type="button"
-                  onClick={() => select(o.label)}
+                <button key={o.label} type="button" onClick={() => select(o.label)}
                   className="w-full text-left px-3 py-2 text-[12px] transition-all"
-                  style={{
-                    color: value === o.label ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.65)',
-                    background: value === o.label ? 'rgba(88,28,135,0.4)' : 'transparent',
-                  }}
-                  onMouseEnter={(e) => { if (value !== o.label) e.currentTarget.style.background = 'rgba(88,28,135,0.2)'; }}
-                  onMouseLeave={(e) => { if (value !== o.label) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <span>{o.label}</span>
+                  style={{ color: value === o.label ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.65)', background: value === o.label ? 'rgba(88,28,135,0.4)' : 'transparent' }}>
+                  {o.label}
                   {o.alternates.length > 0 && (
                     <span className="ml-1.5 text-[10px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
                       ({o.alternates.slice(0, 2).join(', ')}{o.alternates.length > 2 ? '…' : ''})

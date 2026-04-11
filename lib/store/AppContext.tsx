@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { User } from '@supabase/supabase-js';
-import type { AppState, AppAction, Person, Story, Relationship } from '../types';
+import type { AppState, AppAction, Person, Story, Relationship, MediaEntry } from '../types';
 import { allCalendars } from '../data/seasonal-calendars';
 import { kinshipTemplates } from '../data/kinship-templates';
 import { regions } from '../data/regions';
@@ -119,6 +119,35 @@ function appReducer(state: AppState, action: AppAction): AppState {
                 ...p,
                 stories: p.stories.filter(
                   (s) => s.id !== action.payload.storyId,
+                ),
+              }
+            : p,
+        ),
+      };
+
+    case 'ADD_MEDIA_ENTRY':
+      return {
+        ...state,
+        persons: state.persons.map((p) =>
+          p.id === action.payload.personId
+            ? {
+                ...p,
+                mediaEntries: [...(p.mediaEntries ?? []), action.payload.entry],
+                lastUpdated: new Date().toISOString(),
+              }
+            : p,
+        ),
+      };
+
+    case 'DELETE_MEDIA_ENTRY':
+      return {
+        ...state,
+        persons: state.persons.map((p) =>
+          p.id === action.payload.personId
+            ? {
+                ...p,
+                mediaEntries: (p.mediaEntries ?? []).filter(
+                  (e) => e.id !== action.payload.entryId,
                 ),
               }
             : p,
