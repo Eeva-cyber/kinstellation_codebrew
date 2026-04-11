@@ -161,7 +161,8 @@ export function SolarSystemNode({
   const finalOpacity       = dimmed ? 0.08 : boosted ? Math.min(baseOpacity * 1.6 + 0.2, 1) : baseOpacity;
 
   const hasSkinName = !!person.skinName;
-  const hasMedia    = person.stories.some((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video');
+  const hasMedia    = person.stories.some((s) => s.type === 'photo' || s.type === 'audio' || s.type === 'video')
+                   || (person.mediaEntries ?? []).length > 0;
 
   const identityAttrs = [
     person.nation               ? { label: person.nation,               color: '#D4A454', type: 'nation'    as const } : null,

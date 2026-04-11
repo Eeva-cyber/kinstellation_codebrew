@@ -149,6 +149,8 @@ type MediaSection = 'photos' | 'articles' | 'videos';
 
 // ── localStorage size warning ────────────────────────────────────────────────
 const PHOTO_WARN_BYTES = 3 * 1024 * 1024; // 3 MB
+const FILE_WARN_BYTES  = 5 * 1024 * 1024; // 5 MB soft warning
+const FILE_MAX_BYTES   = 10 * 1024 * 1024; // 10 MB hard block
 
 // Generation/era options — mirrors TimelinePanel ERA_GROUPS
 const ERA_OPTIONS = [
@@ -286,6 +288,16 @@ export function PersonPanel({
   const [vTitle, setVTitle]                     = useState('');
   const [vUrl, setVUrl]                         = useState('');
   const [vNote, setVNote]                       = useState('');
+
+  // File attachment form
+  const [showFileForm, setShowFileForm]         = useState(false);
+  const [fTitle, setFTitle]                     = useState('');
+  const [fFileData, setFFileData]               = useState('');
+  const [fFileSize, setFFileSize]               = useState(0);
+  const [fFileName, setFFileName]               = useState('');
+  const [fSeason, setFSeason]                   = useState('unsure');
+  const [fEraId, setFEraId]                     = useState('');
+  const fileAttachInputRef                      = useRef<HTMLInputElement>(null);
 
   // Invite link
   const [inviteLink, setInviteLink] = useState('');
@@ -427,6 +439,38 @@ export function PersonPanel({
     dispatch({ type: 'ADD_MEDIA_ENTRY', payload: { personId: person.id, entry } });
     setVTitle(''); setVUrl(''); setVNote('');
     setShowVideoForm(false);
+  }
+
+  const handleAttachFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setFFileData(e.target?.result as string ?? '');
+      setFFileSize(file.size);
+      setFFileName(file.name);
+      setFTitle((prev) => prev || file.name);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  function handleAddFile() {
+    if (!fFileData || fFileSize > FILE_MAX_BYTES) return;
+    const eraYear = ERA_OPTIONS.find((e) => e.id === fEraId)?.year;
+    const story: Story = {
+      id: crypto.randomUUID(),
+      type: 'file',
+      title: fTitle.trim() || fFileName,
+      content: fFileData,
+      recordedBy: '',
+      recordedDate: new Date().toISOString(),
+      seasonTag: fSeason,
+      year: eraYear,
+      visibility: 'family',
+      linkedPersonIds: [person.id],
+    };
+    dispatch({ type: 'ADD_STORY', payload: { personId: person.id, story } });
+    setFTitle(''); setFFileData(''); setFFileSize(0);
+    setFFileName(''); setFSeason('unsure'); setFEraId('');
+    setShowFileForm(false);
   }
 
   function getRelatedPersonName(rel: typeof personRelationships[0]) {
@@ -776,6 +820,156 @@ export function PersonPanel({
                     </svg>
                     Record a yarn
                   </button>
+
+                  {/* Attach a file — saves documents/images/PDFs as file media entries */}
+                  {showFileForm ? (
+                    <div className="p-4 rounded-xl space-y-3"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(224,112,112,0.25)' }}>
+                      {/* Drop zone */}
+                      <div
+                        onClick={() => fileAttachInputRef.current?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files[0];
+                          if (file) handleAttachFile(file);
+                        }}
+                        className="w-full rounded-xl flex flex-col items-center justify-center py-6 cursor-pointer transition-all"
+                        style={{
+                          border: '2px dashed rgba(224,112,112,0.25)',
+                          background: fFileData ? 'rgba(224,112,112,0.04)' : 'rgba(255,255,255,0.01)',
+                        }}>
+                        {fFileData ? (
+                          fFileData.startsWith('data:image/') ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={fFileData} alt="preview"
+                              className="max-h-32 rounded-lg object-contain mb-2"
+                              style={{ border: '2px solid rgba(224,112,112,0.4)' }} />
+                          ) : (
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="mb-2"
+                              style={{ color: 'rgba(224,112,112,0.7)' }}>
+                              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8L14 2z"
+                                stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M14 2v6h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )
+                        ) : (
+                          <>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="mb-2"
+                              style={{ color: 'rgba(224,112,112,0.4)' }}>
+                              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8L14 2z"
+                                stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M14 2v6h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                              <line x1="12" y1="18" x2="12" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                              <polyline points="9 15 12 12 15 15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Click or drag to attach</span>
+                            <span className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.18)' }}>Images, PDFs, documents — stored locally</span>
+                          </>
+                        )}
+                        <input
+                          ref={fileAttachInputRef}
+                          type="file"
+                          accept="image/*,.pdf,.doc,.docx,.txt,.rtf,.csv,.xls,.xlsx,.ppt,.pptx,.mp3,.m4a,.wav"
+                          className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAttachFile(f); }}
+                        />
+                      </div>
+
+                      {/* File info once loaded */}
+                      {fFileName && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                          style={{ background: 'rgba(224,112,112,0.06)', border: '1px solid rgba(224,112,112,0.15)' }}>
+                          <span className="text-xs flex-1 truncate" style={{ color: 'rgba(224,112,112,0.8)' }}>{fFileName}</span>
+                          <span className="text-[10px] shrink-0" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                            {fFileSize >= 1024 * 1024
+                              ? `${(fFileSize / (1024 * 1024)).toFixed(1)} MB`
+                              : `${(fFileSize / 1024).toFixed(0)} KB`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Storage warnings */}
+                      {fFileSize > FILE_MAX_BYTES && (
+                        <p className="text-xs px-1" style={{ color: 'rgba(248,113,113,0.8)' }}>
+                          File too large (max 10 MB). Consider linking to an external document instead.
+                        </p>
+                      )}
+                      {fFileSize > FILE_WARN_BYTES && fFileSize <= FILE_MAX_BYTES && (
+                        <p className="text-xs px-1" style={{ color: 'rgba(251,191,36,0.75)' }}>
+                          Large file ({(fFileSize / (1024 * 1024)).toFixed(1)} MB) — stored in your browser. This may fill up storage quickly.
+                        </p>
+                      )}
+
+                      <Field label="Title" value={fTitle} onChange={setFTitle} placeholder="File name or description" />
+                      {/* Season pills */}
+                      <div>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>
+                          Which season does this belong to?
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button type="button" onClick={() => setFSeason('unsure')}
+                            className="px-2.5 py-1 rounded-lg text-[11px] transition-all"
+                            style={fSeason === 'unsure' ? {
+                              background: 'rgba(88,28,135,0.5)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)',
+                            } : {
+                              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.35)',
+                            }}>
+                            I&apos;m not sure yet
+                          </button>
+                          {(state.seasonalCalendar?.seasons ?? []).map((season) => (
+                            <button key={season.id} type="button" onClick={() => setFSeason(season.id)}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] transition-all"
+                              style={fSeason === season.id ? {
+                                background: 'rgba(88,28,135,0.5)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)',
+                              } : {
+                                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.35)',
+                              }}>
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: season.colorPalette.accentColor }} />
+                              {season.nameEnglish}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Era dropdown */}
+                      <div>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>
+                          When did this happen? <span style={{ color: 'rgba(255,255,255,0.15)' }}>(optional)</span>
+                        </label>
+                        <select value={fEraId} onChange={(e) => setFEraId(e.target.value)}
+                          className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }}>
+                          {ERA_OPTIONS.map((era) => (
+                            <option key={era.id} value={era.id}>{era.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <BtnSecondary onClick={() => {
+                          setShowFileForm(false);
+                          setFTitle(''); setFFileData(''); setFFileSize(0);
+                          setFFileName(''); setFSeason('unsure'); setFEraId('');
+                        }}>Cancel</BtnSecondary>
+                        <BtnPrimary onClick={handleAddFile} disabled={!fFileData || fFileSize > FILE_MAX_BYTES}>Save</BtnPrimary>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowFileForm(true)}
+                      className="w-full text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+                      style={{ color: 'rgba(224,112,112,0.75)', border: '1px solid rgba(224,112,112,0.22)', background: 'rgba(224,112,112,0.06)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(224,112,112,0.12)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(224,112,112,0.06)'; }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5L8 1z"
+                          stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M8 1v4h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Attach a file
+                    </button>
+                  )}
+
                   <div className="flex gap-2">
                     <button onClick={() => setShowQuickStory(true)}
                       className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
@@ -1054,6 +1248,8 @@ export function PersonPanel({
                   )}
                 </div>
               </MediaSubSection>
+
+
             </div>
           )}
         </div>

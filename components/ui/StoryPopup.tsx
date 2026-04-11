@@ -147,6 +147,7 @@ export function StoryPopup({
 
   const isPhoto = story.type === 'photo';
   const isAudio = story.type === 'audio';
+  const isFile  = story.type === 'file';
 
   function handleSave() {
     const updated: Story = {
@@ -228,8 +229,8 @@ export function StoryPopup({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* Edit toggle — hidden for audio stories (view-only playback) */}
-              {!isAudio && <button
+              {/* Edit toggle — hidden for audio and file stories (view-only) */}
+              {!isAudio && !isFile && <button
                 onClick={() => isEditing ? handleCancel() : setIsEditing(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                 style={{
@@ -323,7 +324,7 @@ export function StoryPopup({
 
           {/* Content */}
           <div className="mb-5">
-            {isEditing && !isPhoto && !isAudio ? (
+            {isEditing && !isPhoto && !isAudio && !isFile ? (
               <div className="relative">
                 <textarea
                   value={editContent}
@@ -358,6 +359,51 @@ export function StoryPopup({
                 </div>
               ) : (
                 <p className="text-base italic" style={{ color: 'rgba(255,255,255,0.25)' }}>Audio not available</p>
+              )
+            ) : isFile ? (
+              story.content.startsWith('data:') ? (
+                <div className="space-y-4">
+                  {/* Image preview */}
+                  {story.content.startsWith('data:image/') && (
+                    <div className="rounded-xl overflow-hidden"
+                      style={{ border: '2px solid rgba(224,112,112,0.4)', boxShadow: '0 0 20px rgba(224,112,112,0.1)' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={story.content} alt={story.title}
+                        className="w-full object-contain" style={{ maxHeight: '300px' }} />
+                    </div>
+                  )}
+                  {/* PDF embed */}
+                  {story.content.startsWith('data:application/pdf') && (
+                    <div className="rounded-xl overflow-hidden"
+                      style={{ border: '1px solid rgba(224,112,112,0.3)' }}>
+                      <iframe
+                        src={story.content}
+                        title={story.title}
+                        className="w-full"
+                        style={{ height: '380px', background: 'rgba(255,255,255,0.02)' }}
+                      />
+                    </div>
+                  )}
+                  {/* Download — always shown */}
+                  <a
+                    href={story.content}
+                    download={story.title}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all"
+                    style={{
+                      background: 'rgba(224,112,112,0.10)',
+                      border: '1px solid rgba(224,112,112,0.28)',
+                      color: 'rgba(224,112,112,0.88)',
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 1v8M4 6l3 3 3-3M2 11h10"
+                        stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Download {story.title}
+                  </a>
+                </div>
+              ) : (
+                <p className="text-base italic" style={{ color: 'rgba(255,255,255,0.25)' }}>File not available</p>
               )
             ) : (
               <p className="text-base leading-relaxed whitespace-pre-wrap" style={{ color: 'rgba(255,255,255,0.90)' }}>

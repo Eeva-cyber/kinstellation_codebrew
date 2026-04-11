@@ -58,7 +58,7 @@ export type RelationshipType =
   | 'country_connection'
   | 'kupai_omasker';
 
-export type StoryType = 'audio' | 'photo' | 'text' | 'video';
+export type StoryType = 'audio' | 'photo' | 'text' | 'video' | 'file';
 
 export type KinshipTemplateType =
   | 'moiety_only'

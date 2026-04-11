@@ -228,6 +228,8 @@ export function MediaEntryView({ entry, person, onClose }: MediaEntryViewProps) 
             </a>
           </div>
         )}
+
+
       </div>
     </div>
   );
