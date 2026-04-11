@@ -196,8 +196,8 @@ components/
 
 ## Auth & data flow
 
-- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → `supabase.auth.signUp({ email: username@kinstellation.app, password })`. Email confirmation must be **disabled** in Supabase for immediate session.
-- **Sign in**: `SignInModal` → `supabase.auth.signInWithPassword` (username→email) or Google OAuth or magic link.
+- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → `supabase.auth.signInAnonymously()`. No email address is involved. Username + password are stored in localStorage (`kinstellation_account { username, pwd: btoa(password), created }`). The anonymous session satisfies the middleware so the user can reach `/canvas`. **Anonymous sign-in must be enabled** in Supabase Auth → Settings → "Allow anonymous sign-ins".
+- **Sign in**: `SignInModal` → validates username + password against `kinstellation_account` in localStorage; if matching, calls `supabase.auth.signInAnonymously()` when no active session exists. Google OAuth and magic-link email also available as alternatives.
 - **Session**: `proxy.ts` (Next.js middleware) calls `supabase.auth.getUser()` on every request to refresh the session cookie and enforce route protection.
 - **Self-person**: Created by `RegionSelector.handleFinish()` → saved to localStorage (`kinstellation_profile`, `kinstellation_self_id`). `SkyCanvas` reads these on mount and creates the `Person` node if missing.
 - **Tutorial flag**: Set to `'true'` in localStorage (`kinstellation_tutorial_pending`) after successful account creation. `SkyCanvas` reads it on mount; `TutorialOverlay` clears it on completion.

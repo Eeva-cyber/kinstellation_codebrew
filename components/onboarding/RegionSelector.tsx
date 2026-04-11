@@ -1057,24 +1057,19 @@ function AccountCreationOverlay({
     setLoading(true);
     setError('');
 
-    // Create a real Supabase session using a synthetic email so the middleware
-    // can authenticate the user on /canvas. Email confirmation must be OFF in Supabase.
-    const email = `${username.trim().toLowerCase()}@kinstellation.app`;
-    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    // Use anonymous sign-in so the middleware gets a real session without
+    // requiring any email address from the user.
+    const { error: anonError } = await supabase.auth.signInAnonymously();
 
-    if (signUpError) {
-      const msg = signUpError.message.toLowerCase();
-      if (msg.includes('already registered') || msg.includes('user already exists')) {
-        setError('That username is taken. Try another.');
-      } else {
-        setError(signUpError.message);
-      }
+    if (anonError) {
+      setError('Could not create account. Please try again.');
       setLoading(false);
       return;
     }
 
     localStorage.setItem('kinstellation_account', JSON.stringify({
       username: username.trim().toLowerCase(),
+      pwd: btoa(password),
       created: new Date().toISOString(),
     }));
     onSuccess();
