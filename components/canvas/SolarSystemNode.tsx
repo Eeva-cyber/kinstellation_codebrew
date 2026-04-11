@@ -2,7 +2,7 @@
 
 import { getStarOpacity, hasStoriesInSeason } from '@/lib/utils/season';
 import { getSeasonById } from '@/lib/utils/season';
-import type { Person, SeasonalCalendar } from '@/lib/types';
+import type { Person, SeasonalCalendar, Story } from '@/lib/types';
 
 interface SolarSystemNodeProps {
   person: Person;
@@ -16,6 +16,7 @@ interface SolarSystemNodeProps {
   zoom: number;
   dimmed?: boolean;
   onSunClick: () => void;
+  onStoryClick: (story: Story) => void;
   onPlanetClick: (action: 'identity' | 'stories' | 'media') => void;
   onDragStart: (e: React.MouseEvent | React.TouchEvent) => void;
 }
@@ -84,6 +85,7 @@ export function SolarSystemNode({
   zoom,
   dimmed = false,
   onSunClick,
+  onStoryClick,
   onPlanetClick,
   onDragStart,
 }: SolarSystemNodeProps) {
@@ -191,7 +193,7 @@ export function SolarSystemNode({
           const col = getStoryColor(story.seasonTag);
           return (
             <g key={story.id} className="cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); onPlanetClick('stories'); }}>
+              onClick={(e) => { e.stopPropagation(); onStoryClick(story); }}>
               <circle cx={px} cy={py} r={16} fill="transparent" />
               <Planet px={px} py={py} r={ORBITS.outer.planetRadius} color={col} />
               {showLabels && (

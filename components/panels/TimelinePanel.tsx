@@ -349,10 +349,7 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
             </div>
           ) : (
             /* Season columns horizontal layout */
-            <div
-              className="flex h-full overflow-x-auto"
-              style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(139,92,246,0.3) transparent' }}
-            >
+            <div className="flex h-full panel-scroll-x">
               {seasonColumns.map((col) => (
                 <div
                   key={col.id}

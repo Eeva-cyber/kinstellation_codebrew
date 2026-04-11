@@ -2,235 +2,457 @@
 
 import { useApp } from '@/lib/store/AppContext';
 
-// Season ID → weather/environment icon type
+/**
+ * Aboriginal season icons — culturally resonant motifs, not generic weather.
+ *
+ * Design language: dot art, animal tracks, fire/water/earth patterns,
+ * concentric circles (meeting place), U-shapes (people sitting), spiral paths.
+ */
+
+// Map season IDs to icon category
 const SEASON_ICON: Record<string, string> = {
   // Noongar (SW WA)
-  birak: 'sun-hot', bunuru: 'sun-intense',
-  djeran: 'cooling', makuru: 'rain',
-  djilba: 'flower', kambarang: 'bloom',
+  birak: 'fire',        // First summer — fire and heat, zamia nuts
+  bunuru: 'drought',    // Second summer — hottest/driest, cracked earth
+  djeran: 'ants',       // Autumn — cooling, ant hills rising
+  makuru: 'rain',       // Winter — cold rain and storms
+  djilba: 'wattle',     // Late winter/spring — wattle blossoms
+  kambarang: 'bloom',   // Wildflower season — flowering of the land
+
   // Yolngu (Arnhem Land)
-  dharratharramirri: 'storm', barramirri: 'monsoon',
-  mainmak: 'wind', midawarr: 'harvest',
-  dharratharr: 'sun', rarranhdharr: 'cool',
-  // D'harawal (Sydney)
-  ngoonungi: 'cool', wiritjiribin: 'cold',
-  tumburung: 'sprout', marrai_gang: 'rain',
-  gadalung_marool: 'sun-hot', burran: 'harvest',
+  dharratharramirri: 'buildup', // Pre-wet heat buildup, lightning
+  barramirri: 'monsoon',        // Wet monsoon, heavy rain, flooding
+  mainmak: 'storm',             // Knock-em-down storms, tall grasses
+  midawarr: 'harvest',          // Mid-dry, abundance and ceremony
+  dharratharr: 'drysun',        // Late dry, cooler nights
+  rarranhdharr: 'stars',        // Cool dry, stars and rest
+
+  // D'harawal (Sydney Basin)
+  ngoonungi: 'cool',       // Cool becoming cold
+  wiritjiribin: 'cold',    // Coldest, short days
+  tumburung: 'sprout',     // Cold becoming warm, growth stirs
+  marrai_gang: 'warmrain', // Warm and wet
+  gadalung_marool: 'heat', // Hot and dry, brightest
+  burran: 'eel',           // Eel run, hot becoming cool
+
   // Torres Strait
-  kuki: 'storm', sager: 'wind', naigai: 'flower',
-  // Generic 6-season
-  fire_season: 'sun-hot', rain_season: 'monsoon',
-  harvest_season: 'harvest', cold_season: 'cold',
-  flower_season: 'bloom', storm_season: 'storm',
+  kuki: 'monsoon',     // NW monsoon, rough seas
+  sager: 'tradewind',  // SE trade winds, calmer
+  naigai: 'transition', // Transitional
+
+  // Generic 6-season fallback
+  fire_season: 'fire',
+  rain_season: 'rain',
+  harvest_season: 'harvest',
+  cold_season: 'cold',
+  flower_season: 'bloom',
+  storm_season: 'storm',
 };
 
-function SunCenter({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-  const coreR = 6.5;
-  const innerRay = coreR + 2.5;
-  const outerRay = coreR + 6;
+/**
+ * Each icon is drawn in a ~20×20 coordinate space, centered at (0,0).
+ * Uses Aboriginal art motifs: dots, concentric circles, tracks, spirals.
+ */
+function SeasonIcon({ type, x, y, color, size = 1 }: {
+  type: string; x: number; y: number; color: string; size?: number;
+}) {
+  const s = size;
+  const dotR = 1.4 * s;
 
-  return (
-    <g filter="url(#centerGlow)">
-      {/* Outer glow halo */}
-      <circle cx={cx} cy={cy} r={coreR + 9} fill={color} opacity={0.06} />
-      {/* Rays — alternating long/short */}
-      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, idx) => {
+  const g = (children: React.ReactNode) => (
+    <g transform={`translate(${x},${y})`} fill={color} stroke="none">
+      {children}
+    </g>
+  );
+
+  switch (type) {
+
+    // ── FIRE — concentric arcs like flame tongues + ember dots ──
+    case 'fire': return g(<>
+      {/* Flame arcs */}
+      {[0, 1, 2].map((i) => (
+        <path key={i}
+          d={`M ${-4 + i * 1.5} ${6 * s} Q ${-3 + i * 1.5} ${(0 - i * 2.5) * s} ${1 + i * 0.5} ${(-6 + i) * s}`}
+          fill="none" stroke={color} strokeWidth={1.5 * s} strokeLinecap="round" opacity={1 - i * 0.25}
+        />
+      ))}
+      {/* Ember dots at base */}
+      {[[-3 * s, 7 * s], [0, 7.5 * s], [3 * s, 6.8 * s]].map(([ex, ey], i) => (
+        <circle key={i} cx={ex} cy={ey} r={dotR * 0.8} opacity={0.9} />
+      ))}
+      {/* Heat shimmer dots */}
+      <circle cx={-5 * s} cy={2 * s} r={dotR * 0.6} opacity={0.5} />
+      <circle cx={5 * s} cy={0 * s} r={dotR * 0.6} opacity={0.5} />
+    </>);
+
+    // ── DROUGHT — cracked earth pattern + intense sun rays ──
+    case 'drought': return g(<>
+      {/* Cracked earth lines */}
+      <path d="M 0 0 L 4 3 L 2 7" stroke={color} strokeWidth={1.2 * s} strokeLinecap="round" fill="none" />
+      <path d="M 0 0 L -5 2 L -4 6" stroke={color} strokeWidth={1.2 * s} strokeLinecap="round" fill="none" />
+      <path d="M 0 0 L 1 -5 L 4 -7" stroke={color} strokeWidth={1.2 * s} strokeLinecap="round" fill="none" />
+      <path d="M 0 0 L -3 -4" stroke={color} strokeWidth={1.2 * s} strokeLinecap="round" fill="none" />
+      {/* Central dot — meeting place symbol */}
+      <circle cx={0} cy={0} r={2 * s} opacity={0.95} />
+      <circle cx={0} cy={0} r={dotR * 0.5} fill="white" opacity={0.7} />
+      {/* Outer rim dots */}
+      {[0, 60, 120, 180, 240, 300].map((deg) => {
         const rad = (deg * Math.PI) / 180;
-        const rOuter = idx % 2 === 0 ? outerRay : outerRay - 2.5;
+        return <circle key={deg} cx={8 * s * Math.cos(rad)} cy={8 * s * Math.sin(rad)} r={dotR * 0.55} opacity={0.45} />;
+      })}
+    </>);
+
+    // ── ANTS — ant tracks: three U-shapes (sitting people / ant bodies) ──
+    case 'ants': return g(<>
+      {/* Ant track U-shapes — Aboriginal "people sitting" motif */}
+      {[[-4 * s, 2 * s, 0], [0, -3 * s, 45], [4 * s, 3 * s, -30]].map(([tx, ty, rot], i) => (
+        <g key={i} transform={`translate(${tx},${ty}) rotate(${rot})`}>
+          <path d={`M -2.5 0 Q -2.5 -4 0 -4 Q 2.5 -4 2.5 0`}
+            stroke={color} strokeWidth={1.3 * s} fill="none" strokeLinecap="round" />
+          <circle cx={-2.5} cy={0} r={dotR * 0.7} />
+          <circle cx={2.5} cy={0} r={dotR * 0.7} />
+        </g>
+      ))}
+      {/* Trail dots */}
+      {[[-1 * s, 6 * s], [2 * s, 7 * s], [-3 * s, -6 * s]].map(([dx, dy], i) => (
+        <circle key={i} cx={dx} cy={dy} r={dotR * 0.55} opacity={0.6} />
+      ))}
+    </>);
+
+    // ── RAIN — curved rain lines + water dots ──
+    case 'rain': return g(<>
+      {/* Rain drops as angled dashes */}
+      {[-5, -2, 1, 4].map((ox, i) => (
+        <line key={i}
+          x1={ox * s} y1={(-4 + (i % 2) * 1.5) * s}
+          x2={(ox - 2) * s} y2={(3 + (i % 2) * 1.5) * s}
+          stroke={color} strokeWidth={1.4 * s} strokeLinecap="round" opacity={0.8 + (i % 2) * 0.15}
+        />
+      ))}
+      {/* Cloud-like arc at top */}
+      <path d="M -6 -5 Q -3 -8.5 0 -8.5 Q 3 -8.5 6 -5"
+        stroke={color} strokeWidth={1.5 * s} fill="none" strokeLinecap="round" opacity={0.7} />
+      {/* Puddle dots at bottom */}
+      {[-3 * s, 0, 3 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={7 * s} r={dotR * 0.65} opacity={0.6} />
+      ))}
+    </>);
+
+    // ── WATTLE — wattle blossom: round pom-pom clusters ──
+    case 'wattle': return g(<>
+      {/* Stem */}
+      <path d={`M 0 ${8 * s} Q 0 ${3 * s} -2 0`} stroke={color} strokeWidth={1.2 * s} fill="none" strokeLinecap="round" opacity={0.7} />
+      <path d={`M 0 ${8 * s} Q 1 ${4 * s} 3 ${1 * s}`} stroke={color} strokeWidth={1.2 * s} fill="none" strokeLinecap="round" opacity={0.7} />
+      {/* Wattle pom-poms — clusters of dots */}
+      {[[-2, 0], [3, 1], [-4, -3], [1, -5], [4, -4]].map(([cx, cy], i) => (
+        <g key={i}>
+          <circle cx={cx * s} cy={cy * s} r={2.2 * s} opacity={0.25} />
+          {[0, 72, 144, 216, 288].map((deg) => {
+            const r = (deg * Math.PI) / 180;
+            return <circle key={deg} cx={cx * s + 1.5 * s * Math.cos(r)} cy={cy * s + 1.5 * s * Math.sin(r)} r={dotR * 0.6} opacity={0.9} />;
+          })}
+          <circle cx={cx * s} cy={cy * s} r={dotR * 0.7} />
+        </g>
+      ))}
+    </>);
+
+    // ── BLOOM — wildflower: native bloom with petal dots ──
+    case 'bloom': return g(<>
+      {/* Petals using arcs */}
+      {[0, 51, 102, 154, 205, 257, 308].map((deg) => {
+        const rad = (deg * Math.PI) / 180;
+        const px = 5 * s * Math.cos(rad);
+        const py = 5 * s * Math.sin(rad);
         return (
-          <line
-            key={deg}
-            x1={cx + Math.cos(rad) * innerRay}
-            y1={cy + Math.sin(rad) * innerRay}
-            x2={cx + Math.cos(rad) * rOuter}
-            y2={cy + Math.sin(rad) * rOuter}
-            stroke={color}
-            strokeWidth={idx % 2 === 0 ? 1.1 : 0.7}
-            strokeLinecap="round"
-            opacity={0.75}
+          <ellipse key={deg} cx={px} cy={py} rx={1.8 * s} ry={3.2 * s}
+            transform={`rotate(${deg}, ${px}, ${py})`}
+            opacity={0.75} />
+        );
+      })}
+      {/* Centre dot — meeting place circle */}
+      <circle cx={0} cy={0} r={2.8 * s} opacity={0.9} />
+      <circle cx={0} cy={0} r={dotR * 0.55} fill="white" opacity={0.85} />
+      {/* Surrounding pollen dots */}
+      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+        const r = (deg * Math.PI) / 180;
+        return <circle key={deg} cx={3.2 * s * Math.cos(r)} cy={3.2 * s * Math.sin(r)} r={dotR * 0.45} opacity={0.5} />;
+      })}
+    </>);
+
+    // ── BUILDUP — lightning + heat spiral (pre-wet season) ──
+    case 'buildup': return g(<>
+      {/* Spiral path outward */}
+      <path d="M 0 0 Q 3 -3 4 0 Q 5 4 1 6 Q -4 7 -6 2 Q -7 -4 -2 -7"
+        stroke={color} strokeWidth={1.3 * s} fill="none" strokeLinecap="round" opacity={0.55} />
+      {/* Lightning bolt */}
+      <path d={`M ${2 * s} ${-7 * s} L ${-1 * s} ${-1 * s} L ${1.5 * s} ${-1 * s} L ${-2 * s} ${7 * s}`}
+        stroke={color} strokeWidth={1.6 * s} strokeLinecap="round" strokeLinejoin="round" fill="none" opacity={0.95} />
+      {/* Energy dots */}
+      {[[-5 * s, -3 * s], [5 * s, 2 * s], [3 * s, -5 * s], [-4 * s, 5 * s]].map(([dx, dy], i) => (
+        <circle key={i} cx={dx} cy={dy} r={dotR * 0.65} opacity={0.55} />
+      ))}
+    </>);
+
+    // ── MONSOON — heavy curved rain bands ──
+    case 'monsoon': return g(<>
+      {/* Three sweeping rain arcs */}
+      {[-4, 0, 4].map((ox, i) => (
+        <path key={i}
+          d={`M ${(ox - 2) * s} ${-5 * s} Q ${(ox + 1) * s} ${0 * s} ${(ox - 1) * s} ${6 * s}`}
+          stroke={color} strokeWidth={(1.8 - i * 0.2) * s} strokeLinecap="round" fill="none"
+          opacity={0.9 - i * 0.15}
+        />
+      ))}
+      {/* Top cloud dots */}
+      {[-4 * s, -1 * s, 2 * s, 5 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={-6 * s} r={dotR * (0.8 - i * 0.05)} opacity={0.6} />
+      ))}
+      {/* Water pool dots */}
+      {[-3 * s, 0, 3 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={7.5 * s} r={dotR * 0.6} opacity={0.5} />
+      ))}
+    </>);
+
+    // ── STORM — cyclone spiral + knock-em-down bent grass ──
+    case 'storm': return g(<>
+      {/* Spiral cyclone */}
+      <path d="M 0 0 Q 3 -2 3 -5 Q 3 -8 0 -7 Q -6 -6 -6 0 Q -6 6 0 7 Q 7 7 7 0"
+        stroke={color} strokeWidth={1.5 * s} fill="none" strokeLinecap="round" opacity={0.75} />
+      {/* Bent grass blades */}
+      {[-5, -2, 1, 4].map((ox, i) => (
+        <path key={i}
+          d={`M ${ox * s} ${8 * s} Q ${(ox + 3) * s} ${4 * s} ${(ox + 5) * s} ${2 * s}`}
+          stroke={color} strokeWidth={1.2 * s} fill="none" strokeLinecap="round" opacity={0.6}
+        />
+      ))}
+    </>);
+
+    // ── HARVEST — abundance: concentric circles (ceremony ground) ──
+    case 'harvest': return g(<>
+      {/* Concentric ceremonial circles */}
+      {[7 * s, 5 * s, 3 * s, 1.3 * s].map((r, i) => (
+        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke={color} strokeWidth={0.9 * s} opacity={0.35 + i * 0.18} />
+      ))}
+      {/* Centre dot */}
+      <circle cx={0} cy={0} r={dotR} />
+      {/* Radiating track dots — animal coming to water */}
+      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg, i) => {
+        const r = (deg * Math.PI) / 180;
+        return <circle key={deg} cx={6.5 * s * Math.cos(r)} cy={6.5 * s * Math.sin(r)} r={dotR * (i % 2 === 0 ? 0.75 : 0.45)} opacity={i % 2 === 0 ? 0.85 : 0.45} />;
+      })}
+    </>);
+
+    // ── DRY SUN — late dry sun with heat shimmer dots ──
+    case 'drysun': return g(<>
+      {/* Sun circle */}
+      <circle cx={0} cy={0} r={4 * s} fill="none" stroke={color} strokeWidth={1.2 * s} opacity={0.9} />
+      <circle cx={0} cy={0} r={2 * s} opacity={0.95} />
+      <circle cx={0} cy={0} r={dotR * 0.5} fill="white" opacity={0.8} />
+      {/* Short rays */}
+      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => {
+        const rad = (deg * Math.PI) / 180;
+        const inner = 5 * s, outer = (i % 2 === 0 ? 8 : 6.5) * s;
+        return <line key={deg} x1={Math.cos(rad) * inner} y1={Math.sin(rad) * inner}
+          x2={Math.cos(rad) * outer} y2={Math.sin(rad) * outer}
+          stroke={color} strokeWidth={(i % 2 === 0 ? 1.1 : 0.7) * s} strokeLinecap="round" opacity={0.7} />;
+      })}
+      {/* Shimmer dots below — heat rising */}
+      {[-4 * s, -1.5 * s, 1 * s, 3.5 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={(i % 2 === 0 ? 9.5 : 8.5) * s} r={dotR * 0.5} opacity={0.35} />
+      ))}
+    </>);
+
+    // ── STARS — cool dry, Milky Way dots ──
+    case 'stars': return g(<>
+      {/* Star field dots — varying sizes */}
+      {[
+        [0, 0, 2.2], [-5, -3, 1.4], [5, -4, 1.2], [-3, 4, 1.3], [4, 5, 1.4],
+        [-6, 1, 1], [6, 2, 0.9], [1, -7, 1.1], [-2, 7, 1], [3, -2, 0.9],
+        [-1, 3, 0.8], [2, 1, 0.7],
+      ].map(([cx, cy, r], i) => (
+        <circle key={i} cx={cx * s} cy={cy * s} r={r * s} opacity={0.4 + (r as number / 2.2) * 0.55} />
+      ))}
+      {/* Milky Way arc */}
+      <path d="M -7 5 Q 0 -2 7 -5" stroke={color} strokeWidth={0.8 * s} fill="none" opacity={0.3} />
+    </>);
+
+    // ── COOL — cooling air: wavy lines + morning dew dots ──
+    case 'cool': return g(<>
+      {/* Wavy cooling lines */}
+      {[-4, 0, 4].map((oy, i) => (
+        <path key={i}
+          d={`M -7 ${oy * s} Q -3.5 ${(oy - 2.5) * s} 0 ${oy * s} Q 3.5 ${(oy + 2.5) * s} 7 ${oy * s}`}
+          stroke={color} strokeWidth={(1.4 - i * 0.15) * s} fill="none" strokeLinecap="round"
+          opacity={0.65 + i * 0.1}
+        />
+      ))}
+      {/* Morning dew dots */}
+      {[-5 * s, -1 * s, 3 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={7 * s} r={dotR * 0.7} opacity={0.5} />
+      ))}
+    </>);
+
+    // ── COLD — winter: frost crystal pattern ──
+    case 'cold': return g(<>
+      {/* Snowflake/frost — 6 arms */}
+      {[0, 60, 120].map((deg) => {
+        const rad = (deg * Math.PI) / 180;
+        return (
+          <g key={deg}>
+            <line x1={-7 * s * Math.cos(rad)} y1={-7 * s * Math.sin(rad)}
+              x2={7 * s * Math.cos(rad)} y2={7 * s * Math.sin(rad)}
+              stroke={color} strokeWidth={1.3 * s} strokeLinecap="round" opacity={0.85} />
+            {/* Branch nodes */}
+            {[-1, 1].map((dir) => {
+              const bx = dir * 3.5 * s * Math.cos(rad), by = dir * 3.5 * s * Math.sin(rad);
+              const pr = ((deg + 90) * Math.PI) / 180;
+              return [2, -2].map((bl) => (
+                <line key={`${dir}${bl}`}
+                  x1={bx} y1={by}
+                  x2={bx + bl * 2 * s * Math.cos(pr)} y2={by + bl * 2 * s * Math.sin(pr)}
+                  stroke={color} strokeWidth={0.8 * s} strokeLinecap="round" opacity={0.65} />
+              ));
+            })}
+          </g>
+        );
+      })}
+      {/* Centre dot */}
+      <circle cx={0} cy={0} r={dotR} />
+    </>);
+
+    // ── SPROUT — new growth emerging from earth ──
+    case 'sprout': return g(<>
+      {/* Earth line */}
+      <line x1={-7 * s} y1={3 * s} x2={7 * s} y2={3 * s} stroke={color} strokeWidth={1.2 * s} strokeLinecap="round" opacity={0.5} />
+      {/* Stem */}
+      <path d={`M 0 ${3 * s} Q -1 ${-1 * s} 0 ${-4 * s}`} stroke={color} strokeWidth={1.5 * s} fill="none" strokeLinecap="round" />
+      {/* Leaves */}
+      <path d={`M 0 ${0 * s} Q -4 ${-2 * s} -5 ${-5 * s} Q -1 ${-3 * s} 0 ${0 * s}`} opacity={0.9} />
+      <path d={`M 0 ${-2 * s} Q 4 ${-3 * s} 5 ${-7 * s} Q 1 ${-5 * s} 0 ${-2 * s}`} opacity={0.75} />
+      {/* Earth dots */}
+      {[-4 * s, -1.5 * s, 1.5 * s, 4 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={5 * s} r={dotR * 0.6} opacity={0.4} />
+      ))}
+    </>);
+
+    // ── WARM RAIN — warm and wet: sun + rain together ──
+    case 'warmrain': return g(<>
+      {/* Sun arc above */}
+      <path d="M -5 -4 Q 0 -9 5 -4" stroke={color} strokeWidth={1.4 * s} fill="none" strokeLinecap="round" opacity={0.8} />
+      {[[-45, -7], [0, -8.5], [45, -7]].map(([deg, r], i) => {
+        const rad = (deg * Math.PI) / 180;
+        return <line key={i} x1={r * s * Math.cos(rad)} y1={r * s * Math.sin(rad)}
+          x2={(r as number + 3) * s * Math.cos(rad)} y2={(r as number + 3) * s * Math.sin(rad)}
+          stroke={color} strokeWidth={1 * s} strokeLinecap="round" opacity={0.65} />;
+      })}
+      {/* Rain below */}
+      {[-4, -1, 2, 5].map((ox, i) => (
+        <line key={i}
+          x1={ox * s} y1={1 * s} x2={(ox - 1.5) * s} y2={(6 + (i % 2) * 1.5) * s}
+          stroke={color} strokeWidth={1.3 * s} strokeLinecap="round" opacity={0.75}
+        />
+      ))}
+    </>);
+
+    // ── HEAT — intense hot and dry sun ──
+    case 'heat': return g(<>
+      {/* Intense sun — double ring */}
+      <circle cx={0} cy={0} r={3.5 * s} opacity={0.95} />
+      <circle cx={0} cy={0} r={dotR * 0.4} fill="white" opacity={0.9} />
+      <circle cx={0} cy={0} r={5.5 * s} fill="none" stroke={color} strokeWidth={0.9 * s} opacity={0.4} />
+      {/* Long hot rays */}
+      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => {
+        const rad = (deg * Math.PI) / 180;
+        const inner = 6.5 * s, outer = (i % 3 === 0 ? 9.5 : i % 3 === 1 ? 8.5 : 7.5) * s;
+        return <line key={deg} x1={Math.cos(rad) * inner} y1={Math.sin(rad) * inner}
+          x2={Math.cos(rad) * outer} y2={Math.sin(rad) * outer}
+          stroke={color} strokeWidth={(i % 3 === 0 ? 1.4 : 0.9) * s} strokeLinecap="round" opacity={0.85} />;
+      })}
+    </>);
+
+    // ── EEL — eel run: serpentine wave with water dots ──
+    case 'eel': return g(<>
+      {/* Eel body — sinuous curve */}
+      <path d="M -7 4 Q -4 -1 -1 0 Q 2 1 4 -3 Q 5 -6 7 -5"
+        stroke={color} strokeWidth={2.2 * s} fill="none" strokeLinecap="round" opacity={0.9} />
+      {/* Head dot */}
+      <circle cx={7 * s} cy={-5 * s} r={dotR * 1.1} />
+      {/* Water flow dots */}
+      {[[-5 * s, 6 * s], [-2 * s, 5.5 * s], [1 * s, 5 * s], [4 * s, 4.5 * s]].map(([dx, dy], i) => (
+        <circle key={i} cx={dx} cy={dy} r={dotR * (0.5 + i * 0.08)} opacity={0.45} />
+      ))}
+    </>);
+
+    // ── TRADE WIND — SE trade winds: flowing lines across water ──
+    case 'tradewind': return g(<>
+      {/* Three sweeping wind lines */}
+      {[[-3, -2], [0, 0.5], [3, 3]].map(([oy, d], i) => (
+        <path key={i}
+          d={`M -7 ${(oy) * s} Q ${d * s} ${(oy - 2) * s} 7 ${(oy + 1) * s}`}
+          stroke={color} strokeWidth={(1.5 - i * 0.2) * s} fill="none" strokeLinecap="round"
+          opacity={0.75 - i * 0.1}
+        />
+      ))}
+      {/* Wave dots */}
+      {[-5 * s, -1.5 * s, 2 * s, 5.5 * s].map((dx, i) => (
+        <circle key={i} cx={dx} cy={(5 + (i % 2)) * s} r={dotR * 0.6} opacity={0.45} />
+      ))}
+    </>);
+
+    // ── TRANSITION — change: half-and-half pattern ──
+    case 'transition': return g(<>
+      {/* Left half dots (old season) */}
+      {[[-5, -3], [-4, 1], [-6, 4], [-2, -5]].map(([dx, dy], i) => (
+        <circle key={i} cx={dx * s} cy={dy * s} r={dotR * (0.7 + i * 0.05)} opacity={0.45} />
+      ))}
+      {/* Dividing line */}
+      <line x1={0} y1={-8 * s} x2={0} y2={8 * s} stroke={color} strokeWidth={0.8 * s} opacity={0.35} strokeDasharray={`${2 * s} ${2 * s}`} />
+      {/* Right half connected circles */}
+      <circle cx={4 * s} cy={-2 * s} r={2 * s} fill="none" stroke={color} strokeWidth={1.1 * s} opacity={0.7} />
+      <circle cx={4 * s} cy={-2 * s} r={dotR * 0.6} />
+      <circle cx={5 * s} cy={3 * s} r={1.5 * s} fill="none" stroke={color} strokeWidth={0.9 * s} opacity={0.55} />
+      <circle cx={5 * s} cy={3 * s} r={dotR * 0.5} />
+      {/* Joining arc */}
+      <path d="M 2 -7 Q 5 0 2 7" stroke={color} strokeWidth={1.1 * s} fill="none" opacity={0.5} strokeLinecap="round" />
+    </>);
+
+    // ── DEFAULT: concentric circles (meeting place) ──
+    default: return g(<>
+      {[6 * s, 4 * s, 2.2 * s].map((r, i) => (
+        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke={color} strokeWidth={0.9 * s} opacity={0.3 + i * 0.25} />
+      ))}
+      <circle cx={0} cy={0} r={dotR} />
+    </>);
+  }
+}
+
+// ── Central sun symbol ─────────────────────────────────────────────────────────
+function SunCenter({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+  const r = 7;
+  return (
+    <g>
+      {/* Outer atmospheric glow */}
+      <circle cx={cx} cy={cy} r={r + 10} fill={color} opacity={0.04} />
+      <circle cx={cx} cy={cy} r={r + 6} fill={color} opacity={0.07} />
+      {/* Rays */}
+      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => {
+        const rad = (deg * Math.PI) / 180;
+        const inner = r + 2, outer = r + (i % 2 === 0 ? 7 : 5);
+        return (
+          <line key={deg}
+            x1={cx + Math.cos(rad) * inner} y1={cy + Math.sin(rad) * inner}
+            x2={cx + Math.cos(rad) * outer} y2={cy + Math.sin(rad) * outer}
+            stroke={color} strokeWidth={i % 2 === 0 ? 1.2 : 0.7}
+            strokeLinecap="round" opacity={0.7}
           />
         );
       })}
-      {/* Core circles */}
-      <circle cx={cx} cy={cy} r={coreR} fill={color} opacity={0.22} />
-      <circle cx={cx} cy={cy} r={coreR * 0.65} fill={color} opacity={0.55} />
-      <circle cx={cx} cy={cy} r={coreR * 0.3} fill="white" opacity={0.7} />
+      {/* Core */}
+      <circle cx={cx} cy={cy} r={r} fill={color} opacity={0.2} />
+      <circle cx={cx} cy={cy} r={r * 0.65} fill={color} opacity={0.5} />
+      <circle cx={cx} cy={cy} r={r * 0.28} fill="white" opacity={0.75} />
     </g>
   );
-}
-
-function WeatherIcon({
-  type, x, y, color, opacity,
-}: {
-  type: string; x: number; y: number; color: string; opacity: number;
-}) {
-  switch (type) {
-    case 'sun-hot':
-    case 'sun-intense':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity} fill="none">
-          {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, idx) => {
-            const rad = (deg * Math.PI) / 180;
-            const len = idx % 3 === 0 ? 4.5 : idx % 3 === 1 ? 3.5 : 2.5;
-            return (
-              <line
-                key={deg}
-                x1={Math.cos(rad) * 3.8}
-                y1={Math.sin(rad) * 3.8}
-                x2={Math.cos(rad) * (3.8 + len)}
-                y2={Math.sin(rad) * (3.8 + len)}
-                stroke={color}
-                strokeWidth={idx % 3 === 0 ? 1.1 : 0.7}
-                strokeLinecap="round"
-              />
-            );
-          })}
-          <circle r={3.5} fill={color} opacity={0.95} />
-        </g>
-      );
-
-    case 'sun':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity} fill="none">
-          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
-            const rad = (deg * Math.PI) / 180;
-            return (
-              <line
-                key={deg}
-                x1={Math.cos(rad) * 3.8} y1={Math.sin(rad) * 3.8}
-                x2={Math.cos(rad) * 6.5} y2={Math.sin(rad) * 6.5}
-                stroke={color} strokeWidth={1} strokeLinecap="round"
-              />
-            );
-          })}
-          <circle r={3.2} fill={color} opacity={0.9} />
-        </g>
-      );
-
-    case 'rain':
-    case 'monsoon':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity}>
-          {/* Cloud */}
-          <path
-            d="M -5 0 Q -5 -5.5 -1.5 -5.5 Q -1 -8 2.5 -7.5 Q 6 -7 5.5 -3.5 Q 7.5 -3.5 7.5 -1 Q 7.5 2 5 2 L -5 2 Q -7 2 -7 -0.5 Q -7 -2 -5 -2 Z"
-            fill={color}
-            fillOpacity={0.55}
-          />
-          {/* Rain drops */}
-          {[-3.5, 0, 3.5].map((ox) => (
-            <line
-              key={ox}
-              x1={ox} y1={4}
-              x2={ox - 1.5} y2={9}
-              stroke={color}
-              strokeWidth={1.3}
-              strokeLinecap="round"
-              opacity={0.85}
-            />
-          ))}
-        </g>
-      );
-
-    case 'storm':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity}>
-          {/* Cloud */}
-          <path
-            d="M -5 -1 Q -5 -6 -1 -6 Q -0.5 -9 3 -8.5 Q 6.5 -8 6 -4.5 Q 8 -4.5 8 -2 Q 8 0 5.5 0 L -5 0 Q -7 0 -7 -2 Q -7 -3.5 -5 -3.5 Z"
-            fill={color}
-            fillOpacity={0.5}
-          />
-          {/* Lightning bolt */}
-          <path
-            d="M 1.5 0 L -2 5.5 L 0.5 5.5 L -2 11 L 5 3.5 L 2 3.5 Z"
-            fill={color}
-            fillOpacity={0.95}
-          />
-        </g>
-      );
-
-    case 'wind':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity} fill="none" stroke={color} strokeLinecap="round">
-          <path d="M -7 -3.5 Q -1 -7 4 -3.5 Q 7.5 -0.5 5.5 2" strokeWidth={1.4} />
-          <path d="M -7 0.5 Q -1 -3 4 0.5" strokeWidth={1.1} />
-          <path d="M -6 4.5 Q 0 1.5 4 4.5" strokeWidth={0.9} />
-        </g>
-      );
-
-    case 'flower':
-    case 'bloom':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity}>
-          {[0, 72, 144, 216, 288].map((deg) => {
-            const rad = (deg * Math.PI) / 180;
-            const px = Math.cos(rad) * 4.5;
-            const py = Math.sin(rad) * 4.5;
-            return (
-              <ellipse
-                key={deg}
-                cx={px} cy={py}
-                rx={2.2} ry={3.5}
-                fill={color}
-                fillOpacity={0.72}
-                transform={`rotate(${deg}, ${px}, ${py})`}
-              />
-            );
-          })}
-          <circle r={2.2} fill={color} opacity={0.95} />
-        </g>
-      );
-
-    case 'harvest':
-    case 'sprout':
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity} fill="none">
-          {/* Grain/leaf shape */}
-          <path d="M 0 8 Q -6.5 1 0 -8 Q 6.5 1 0 8 Z" fill={color} fillOpacity={0.8} />
-          {/* Vein */}
-          <path d="M 0 8 L 0 -8" stroke="rgba(0,0,0,0.25)" strokeWidth={0.8} />
-          {/* Side sprigs */}
-          <path d="M 0 -1 Q -5.5 -5 -3 -8" stroke={color} strokeWidth={1.1} strokeLinecap="round" />
-          <path d="M 0 -1 Q 5.5 -5 3 -8" stroke={color} strokeWidth={1.1} strokeLinecap="round" />
-        </g>
-      );
-
-    case 'cool':
-    case 'cooling':
-    case 'cold':
-    default:
-      // Snowflake
-      return (
-        <g transform={`translate(${x},${y})`} opacity={opacity} fill="none" stroke={color} strokeLinecap="round">
-          {[0, 60, 120].map((deg) => {
-            const rad = (deg * Math.PI) / 180;
-            return (
-              <line
-                key={deg}
-                x1={-Math.cos(rad) * 7.5} y1={-Math.sin(rad) * 7.5}
-                x2={Math.cos(rad) * 7.5} y2={Math.sin(rad) * 7.5}
-                strokeWidth={1.3}
-              />
-            );
-          })}
-          {/* Side branches on each arm */}
-          {[0, 60, 120, 180, 240, 300].map((deg) => {
-            const rad = (deg * Math.PI) / 180;
-            const mx = Math.cos(rad) * 4;
-            const my = Math.sin(rad) * 4;
-            const bRad1 = ((deg + 60) * Math.PI) / 180;
-            const bRad2 = ((deg - 60) * Math.PI) / 180;
-            return (
-              <g key={deg}>
-                <line x1={mx} y1={my} x2={mx + Math.cos(bRad1) * 2.2} y2={my + Math.sin(bRad1) * 2.2} strokeWidth={0.8} />
-                <line x1={mx} y1={my} x2={mx + Math.cos(bRad2) * 2.2} y2={my + Math.sin(bRad2) * 2.2} strokeWidth={0.8} />
-              </g>
-            );
-          })}
-        </g>
-      );
-  }
 }
 
 interface SeasonWheelProps {
@@ -246,87 +468,79 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
 
   if (seasons.length === 0) return null;
 
-  const size = 216;
+  const size = 224;
   const cx = size / 2;
   const cy = size / 2;
-  const outerR = 93;
-  const innerR = 30;
+  const outerR = 97;
+  const innerR = 32;
   const arcCount = seasons.length;
-  // Small gap between arc segments for visual separation
-  const gap = arcCount > 4 ? 0.022 : 0.014;
+  const gap = arcCount > 4 ? 0.02 : 0.012;
 
   function describeDonutArc(index: number): string {
     const startAngle = (2 * Math.PI * index) / arcCount - Math.PI / 2 + gap;
     const endAngle = (2 * Math.PI * (index + 1)) / arcCount - Math.PI / 2 - gap;
     const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
-
-    const ox1 = cx + outerR * Math.cos(startAngle);
-    const oy1 = cy + outerR * Math.sin(startAngle);
-    const ox2 = cx + outerR * Math.cos(endAngle);
-    const oy2 = cy + outerR * Math.sin(endAngle);
-    const ix2 = cx + innerR * Math.cos(endAngle);
-    const iy2 = cy + innerR * Math.sin(endAngle);
-    const ix1 = cx + innerR * Math.cos(startAngle);
-    const iy1 = cy + innerR * Math.sin(startAngle);
-
+    const ox1 = cx + outerR * Math.cos(startAngle), oy1 = cy + outerR * Math.sin(startAngle);
+    const ox2 = cx + outerR * Math.cos(endAngle),   oy2 = cy + outerR * Math.sin(endAngle);
+    const ix2 = cx + innerR * Math.cos(endAngle),   iy2 = cy + innerR * Math.sin(endAngle);
+    const ix1 = cx + innerR * Math.cos(startAngle), iy1 = cy + innerR * Math.sin(startAngle);
     return `M ${ox1} ${oy1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
   }
 
   const currentSeason = seasons.find((s) => s.id === currentSeasonId);
-  // For the label below: show the last selected filter, or fall back to current season
   const lastActiveId = activeSeasonFilters[activeSeasonFilters.length - 1] ?? null;
   const activeSeason = lastActiveId ? seasons.find((s) => s.id === lastActiveId) : null;
   const displaySeason = activeSeason ?? currentSeason;
-  const centerColor = currentSeason?.colorPalette.accentColor ?? 'rgba(255,220,160,0.6)';
+  const centerColor = currentSeason?.colorPalette.accentColor ?? 'rgba(255,220,160,0.7)';
+
+  // Gradient IDs per segment
+  const gradIds = seasons.map((s) => `seg-grad-${s.id}`);
 
   return (
     <div className="absolute bottom-4 left-4 z-[50] select-none">
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className="drop-shadow-2xl"
-      >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="drop-shadow-2xl">
         <defs>
+          {/* Radial gradient per segment */}
+          {seasons.map((season, i) => (
+            <radialGradient key={season.id} id={gradIds[i]} cx="50%" cy="50%" r="50%">
+              <stop offset="40%" stopColor={season.colorPalette.accentColor} stopOpacity={0.55} />
+              <stop offset="100%" stopColor={season.colorPalette.accentColor} stopOpacity={0.85} />
+            </radialGradient>
+          ))}
+
           <filter id="wheelGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="activeGlow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           <filter id="centerGlow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="3.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
-          <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={centerColor} stopOpacity={0.06} />
-            <stop offset="100%" stopColor="rgba(0,0,0,0)" stopOpacity={0} />
+          <radialGradient id="wheelBg" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={centerColor} stopOpacity={0.08} />
+            <stop offset="100%" stopColor="black" stopOpacity={0} />
           </radialGradient>
         </defs>
 
-        {/* Subtle background glow from current season */}
-        <circle cx={cx} cy={cy} r={outerR + 8} fill="url(#bgGrad)" />
+        {/* Background ambient glow */}
+        <circle cx={cx} cy={cy} r={outerR + 12} fill="url(#wheelBg)" />
 
-        {/* Very faint outer decoration ring */}
-        <circle cx={cx} cy={cy} r={outerR + 4} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={6} />
+        {/* Outer decoration ring */}
+        <circle cx={cx} cy={cy} r={outerR + 5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={8} />
+        <circle cx={cx} cy={cy} r={outerR + 1} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={1} />
 
-        {/* Tick marks on outer ring — one per season */}
+        {/* Tick marks */}
         {seasons.map((_, i) => {
           const angle = (2 * Math.PI * i) / arcCount - Math.PI / 2;
           return (
-            <line
-              key={i}
-              x1={cx + (outerR + 1) * Math.cos(angle)}
-              y1={cy + (outerR + 1) * Math.sin(angle)}
-              x2={cx + (outerR + 5) * Math.cos(angle)}
-              y2={cy + (outerR + 5) * Math.sin(angle)}
-              stroke="rgba(255,255,255,0.18)"
-              strokeWidth={0.8}
-              strokeLinecap="round"
+            <line key={i}
+              x1={cx + (outerR + 2) * Math.cos(angle)} y1={cy + (outerR + 2) * Math.sin(angle)}
+              x2={cx + (outerR + 7) * Math.cos(angle)} y2={cy + (outerR + 7) * Math.sin(angle)}
+              stroke="rgba(255,255,255,0.22)" strokeWidth={1} strokeLinecap="round"
             />
           );
         })}
@@ -335,172 +549,164 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
         {seasons.map((season, i) => {
           const isActive = activeSeasonFilters.includes(season.id);
           const isCurrent = currentSeasonId === season.id;
-          const baseOpacity = isActive ? 1 : activeSeasonFilters.length > 0 ? 0.18 : isCurrent ? 0.8 : 0.42;
+          const baseOpacity = isActive ? 1 : activeSeasonFilters.length > 0 ? 0.15 : isCurrent ? 0.82 : 0.44;
 
           const midAngle = (2 * Math.PI * (i + 0.5)) / arcCount - Math.PI / 2;
-
-          // For many seasons: center icon in the full donut depth
-          // For few seasons (3): icon closer to inner, name near outer
-          const useLabelInSegment = arcCount <= 4;
-          const iconR = innerR + (outerR - innerR) * (useLabelInSegment ? 0.38 : 0.5);
+          const iconR = innerR + (outerR - innerR) * 0.5;
           const ix = cx + iconR * Math.cos(midAngle);
           const iy = cy + iconR * Math.sin(midAngle);
-          const iconType = SEASON_ICON[season.id] ?? 'sun';
-          const iconOpacity = Math.min(baseOpacity * 1.4, 0.98);
+          const iconType = SEASON_ICON[season.id] ?? 'harvest';
 
-          // Current season marker: small glowing dot near outer rim
-          const dotR = outerR - 5;
+          // Current season pulsing dot
+          const dotR = outerR - 6;
           const dx = cx + dotR * Math.cos(midAngle);
           const dy = cy + dotR * Math.sin(midAngle);
 
-          // For 3-season calendars: show name in outer portion of arc
-          const labelR = innerR + (outerR - innerR) * 0.8;
-          const lx = cx + labelR * Math.cos(midAngle);
-          const ly = cy + labelR * Math.sin(midAngle);
+          // Season name — inside segment for ≤4 seasons
+          const showName = arcCount <= 4;
+          const nameR = innerR + (outerR - innerR) * 0.82;
+          const lx = cx + nameR * Math.cos(midAngle);
+          const ly = cy + nameR * Math.sin(midAngle);
 
           return (
-            <g
-              key={season.id}
+            <g key={season.id}
               onClick={() => onSeasonClick(season.id)}
               className="cursor-pointer"
               role="button"
-              aria-label={`Filter by ${season.name} — ${season.nameEnglish}`}
+              aria-label={`Filter by ${season.name}`}
             >
               <title>{season.name} · {season.nameEnglish}</title>
 
-              {/* Glow layer for active/current */}
-              {(isActive || isCurrent) && (
-                <path
-                  d={describeDonutArc(i)}
+              {/* Active halo glow */}
+              {isActive && (
+                <path d={describeDonutArc(i)}
                   fill={season.colorPalette.accentColor}
-                  opacity={0.22}
+                  opacity={0.28}
+                  filter="url(#activeGlow)"
+                  className="pointer-events-none"
+                />
+              )}
+
+              {/* Current season soft glow */}
+              {isCurrent && !isActive && (
+                <path d={describeDonutArc(i)}
+                  fill={season.colorPalette.accentColor}
+                  opacity={0.15}
                   filter="url(#wheelGlow)"
                   className="pointer-events-none"
                 />
               )}
 
-              {/* Main arc segment */}
-              <path
-                d={describeDonutArc(i)}
-                fill={season.colorPalette.accentColor}
+              {/* Segment fill — gradient from inner to outer */}
+              <path d={describeDonutArc(i)}
+                fill={`url(#${gradIds[i]})`}
                 opacity={baseOpacity}
                 className="transition-opacity duration-300"
               />
 
-              {/* Weather/environment icon — centered in donut */}
-              <WeatherIcon
-                type={iconType}
-                x={ix}
-                y={iy}
-                color="white"
-                opacity={iconOpacity}
-              />
+              {/* Active border */}
+              {isActive && (
+                <path d={describeDonutArc(i)}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.45)"
+                  strokeWidth={1.8}
+                  className="pointer-events-none"
+                />
+              )}
 
-              {/* Season name — only shown in-segment for ≤4 seasons (enough arc width) */}
-              {useLabelInSegment && (
-                <text
-                  x={lx}
-                  y={ly}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="white"
-                  fontSize={9}
-                  fontWeight={isActive ? 700 : 400}
-                  opacity={isActive ? 0.98 : Math.min(baseOpacity * 2, 0.9)}
+              {/* Icon */}
+              <g opacity={Math.min(baseOpacity * 1.35, 1)} className="pointer-events-none">
+                <SeasonIcon type={iconType} x={ix} y={iy} color="white" size={0.82} />
+              </g>
+
+              {/* Name label (wide arcs only) */}
+              {showName && (
+                <text x={lx} y={ly}
+                  textAnchor="middle" dominantBaseline="central"
+                  fill="white" fontSize={8.5} fontWeight={isActive ? 700 : 400}
+                  opacity={isActive ? 0.98 : Math.min(baseOpacity * 2, 0.85)}
                   className="pointer-events-none select-none"
-                  style={{ fontFamily: 'system-ui, sans-serif' }}
+                  style={{ fontFamily: 'system-ui, sans-serif', letterSpacing: '0.03em' }}
                 >
-                  {season.name.length > 7 ? season.name.slice(0, 6) + '…' : season.name}
+                  {season.name.length > 8 ? season.name.slice(0, 7) + '…' : season.name}
                 </text>
               )}
 
-              {/* For 5-6 seasons: abbreviated initials near inner ring as a subtle hint */}
-              {!useLabelInSegment && (
+              {/* Abbreviated initials for dense wheels */}
+              {!showName && (
                 <text
-                  x={cx + (innerR + 10) * Math.cos(midAngle)}
-                  y={cy + (innerR + 10) * Math.sin(midAngle)}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="white"
-                  fontSize={6}
-                  fontWeight={400}
-                  opacity={Math.min(baseOpacity * 1.5, 0.55)}
+                  x={cx + (innerR + 11) * Math.cos(midAngle)}
+                  y={cy + (innerR + 11) * Math.sin(midAngle)}
+                  textAnchor="middle" dominantBaseline="central"
+                  fill="white" fontSize={6.5} fontWeight={400}
+                  opacity={Math.min(baseOpacity * 1.5, 0.6)}
                   className="pointer-events-none select-none"
-                  style={{ fontFamily: 'system-ui, sans-serif', letterSpacing: '0.05em' }}
+                  style={{ fontFamily: 'system-ui, sans-serif', letterSpacing: '0.06em' }}
                 >
                   {season.name.slice(0, 3).toUpperCase()}
                 </text>
               )}
 
-              {/* Current season glowing dot */}
+              {/* Current season pulsing indicator dot */}
               {isCurrent && (
-                <circle
-                  cx={dx} cy={dy} r={3}
-                  fill="white"
-                  opacity={0.92}
+                <circle cx={dx} cy={dy} r={3.5}
+                  fill="white" opacity={0.88}
                   className="pointer-events-none animate-star-pulse"
-                />
-              )}
-
-              {/* Active filter indicator: bright ring around segment outer edge */}
-              {isActive && (
-                <path
-                  d={describeDonutArc(i)}
-                  fill="none"
-                  stroke="rgba(255,255,255,0.4)"
-                  strokeWidth={1.5}
-                  className="pointer-events-none"
                 />
               )}
             </g>
           );
         })}
 
-        {/* Outer ring border */}
-        <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={0.6} />
-        {/* Inner ring border */}
-        <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.6} />
+        {/* Ring borders */}
+        <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={0.7} />
+        <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={0.7} />
 
-        {/* Center dark background */}
-        <circle cx={cx} cy={cy} r={innerR - 1} fill="rgba(4,6,16,0.93)" />
+        {/* Dark inner disc */}
+        <circle cx={cx} cy={cy} r={innerR - 1} fill="rgba(4,3,14,0.94)" />
 
-        {/* Center sun */}
-        <SunCenter cx={cx} cy={cy} color={centerColor} />
+        {/* Centre sun */}
+        <g filter="url(#centerGlow)">
+          <SunCenter cx={cx} cy={cy} color={centerColor} />
+        </g>
       </svg>
 
-      {/* Season info label below wheel */}
+      {/* Season info card */}
       {displaySeason && (
         <div
-          className="px-2.5 py-1.5 rounded-xl"
+          className="px-3 py-2 rounded-xl"
           style={{
             maxWidth: size,
-            background: 'rgba(4,6,16,0.75)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            backdropFilter: 'blur(8px)',
+            background: 'rgba(4,3,14,0.82)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            backdropFilter: 'blur(10px)',
           }}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
+              className="w-2 h-2 rounded-full shrink-0"
               style={{
                 backgroundColor: displaySeason.colorPalette.accentColor,
-                boxShadow: `0 0 5px ${displaySeason.colorPalette.accentColor}90`,
+                boxShadow: `0 0 6px ${displaySeason.colorPalette.accentColor}`,
               }}
             />
-            <span className="text-[10px] font-medium text-white/60">
+            <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>
               {displaySeason.name}
             </span>
-            <span className="text-[9px] text-white/25 truncate">
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
               {displaySeason.nameEnglish}
             </span>
           </div>
-          <p className="text-[9px] text-white/20 mt-0.5 leading-snug line-clamp-2">
+          <p className="text-[9px] mt-0.5 leading-snug line-clamp-2" style={{ color: 'rgba(255,255,255,0.22)' }}>
             {displaySeason.description.split('.')[0]}.
           </p>
           {activeSeasonFilters.length > 0 && (
             <button
               onClick={onClearFilters}
-              className="mt-1 text-[8px] text-white/30 hover:text-white/55 transition-colors tracking-wide uppercase"
+              className="mt-1.5 text-[9px] uppercase tracking-wider transition-colors"
+              style={{ color: 'rgba(212,164,84,0.55)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(212,164,84,0.9)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(212,164,84,0.55)')}
             >
               clear {activeSeasonFilters.length > 1 ? `${activeSeasonFilters.length} filters` : 'filter'} ×
             </button>
