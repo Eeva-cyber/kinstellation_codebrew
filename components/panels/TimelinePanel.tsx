@@ -8,6 +8,7 @@ import type { Story } from '@/lib/types';
 interface TimelinePanelProps {
   onClose: () => void;
   onStoryClick: (personId: string) => void;
+  tutorialHighlight?: boolean;
 }
 
 interface TimelineStory extends Story {
@@ -222,7 +223,7 @@ const FILTER_DEFS = [
   { key: 'voice',      label: 'Voice',      icon: '◉' },
 ] as const;
 
-export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
+export function TimelinePanel({ onClose, onStoryClick, tutorialHighlight }: TimelinePanelProps) {
   const { state } = useApp();
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
   const [selectedSeasonIds, setSelectedSeasonIds] = useState<string[]>([]);
@@ -342,9 +343,10 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
           height: '58vh',
           minHeight: 360,
           background: 'rgba(6,3,18,0.98)',
-          borderTop: '2px solid rgba(88,28,135,0.55)',
+          borderTop: tutorialHighlight ? '2px solid rgba(212,164,84,0.45)' : '2px solid rgba(88,28,135,0.55)',
           boxShadow: '0 -12px 48px rgba(88,28,135,0.28)',
           backdropFilter: 'blur(24px)',
+          ...(tutorialHighlight && { filter: 'brightness(1.22)' }),
         }}
       >
         {/* ── Header bar ── */}
@@ -379,7 +381,7 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
               <button
                 onClick={handleSummarize}
                 disabled={summarizing}
-                className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                className={`text-xs px-3 py-1.5 rounded-lg transition-all${tutorialHighlight ? ' animate-tutorial-box-glow' : ''}`}
                 style={{
                   color: summarizing ? 'rgba(212,164,84,0.40)' : 'rgba(212,164,84,0.80)',
                   border: '1px solid rgba(212,164,84,0.30)',
@@ -453,7 +455,7 @@ export function TimelinePanel({ onClose, onStoryClick }: TimelinePanelProps) {
 
         {/* ── Filter row — full width, 4 columns ── */}
         <div
-          className="shrink-0 px-6 py-3 grid gap-3"
+          className={`shrink-0 px-6 py-3 grid gap-3${tutorialHighlight ? ' animate-tutorial-box-glow rounded-xl' : ''}`}
           style={{
             gridTemplateColumns: 'repeat(4, 1fr)',
             borderBottom: '1px solid rgba(88,28,135,0.25)',

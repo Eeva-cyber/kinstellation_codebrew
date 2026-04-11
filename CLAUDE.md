@@ -61,16 +61,20 @@ proxy.ts (middleware)         — Route protection: only /canvas requires auth; 
 lib/
   types.ts            — All TypeScript types (Person has isGuest?: boolean for connected users)
   data/               — Seasonal calendars, kinship templates, region configs (static JSON)
-  data/demo-nodes.ts  — Five demo persons (Aunty June, Uncle Ray, Cousin Mia, Elder Thomas, Young Sarah)
-                         + five relationships; all Warlpiri, stories assigned to generic calendar seasons
-                         (cold_season, harvest_season, rain_season, storm_season, flower_season, fire_season).
+  data/demo-nodes.ts  — Three demo persons (Elder Thomas/Bunjil, Aunty June/Waa, Young Sarah/Bunjil)
+                         + three relationships; all Wurundjeri Woi Wurrung (Victorian Kulin Nation);
+                         moiety: 'Bunjil' or 'Waa' (Aboriginal names only, no English gloss); language: Woiwurrung;
+                         communities: Healesville, Fitzroy, Melbourne; no skin names (not a Kulin practice);
+                         stories grounded in Victorian history (Coranderrk, Birrarung/Yarra River, Naarm/
+                         Melbourne, Koorie Heritage Trust, Woiwurrung language revival); season tags use
+                         generic calendar (cold_season, harvest_season, rain_season, flower_season, fire_season).
                          Always loaded on cold page load.
   store/AppContext.tsx — React Context + useReducer; localStorage-first persistence;
                          DEMO MODE: on every cold load clears kinstellation_data, forces kinstellation_region
-                         to 'warlpiri' (loads moiety template + generic seasonal calendar automatically),
-                         sets kinstellation_tutorial_pending='true' so tutorial shows every cold load;
-                         reseeds from DEMO_PERSONS/DEMO_RELATIONSHIPS; data added during a session persists
-                         within that session via auto-save but is wiped on next load;
+                         to 'wurundjeri' (loads Bunjil/Waa Kulin moiety template + generic seasonal calendar
+                         automatically), sets kinstellation_tutorial_pending='true' so tutorial shows every
+                         cold load; reseeds from DEMO_PERSONS/DEMO_RELATIONSHIPS; data added during a session
+                         persists within that session via auto-save but is wiped on next load;
                          Supabase auth listener for user state; signOut clears all localStorage keys
   utils/season.ts     — Season detection, star radius/opacity calculations
   supabase.ts         — Supabase client (browser)
@@ -99,13 +103,33 @@ components/
                         ConstellationLine (gold/purple colour scheme with glow halos),
                         MilkyWay, MoietyRegions, SeasonalAmbient,
                         SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes,
-                        TutorialOverlay (4-step demo-aware tutorial; all cards positioned fixed top-20 right-6
-                        z-[60] to avoid SeasonWheel z-[50] at bottom-left and toolbar at bottom-right;
-                        step 0 introduces 5 demo people by name; step 1 highlights + button with pulsing ring
-                        + "Open Aunty June for me" (onOpenPersonById prop); step 2 explains moiety buttons +
-                        relationship lines; step 3 explains Timeline + Summarise with "Open the Timeline for me";
-                        shows on every cold load; props: onOpenPersonById, onOpenTimeline, onComplete),
-                        SavePrompt (upsell for unauthenticated users with data; renders as a toolbar button — permanent, no dismiss — positioned below the Add a star button)
+                        TutorialOverlay (11-step cohesive tutorial written at elementary school level;
+                        steps 0–3 use DarkBackdrop (z-[59], rgba(2,1,8,0.68)) — full canvas dim so card
+                        "brightens" by contrast; steps 4–10 use SoftBackdrop (rgba(2,1,8,0.38)) so open
+                        panels remain visible through the overlay;
+                        CARD_POSITION is dynamic: step 3 → bottom-6 left-6 (avoids PersonPanel on right),
+                        step 8 → top-4 left-6 (avoids TimelinePanel at bottom), step 9 → top-20 right-6
+                        (avoids QuickAddModal centre), otherwise → top-20 left-6;
+                        step 0: mouse controls (scroll=zoom, drag=pan, click=open);
+                        step 1: welcome (3 Wurundjeri demo people, Aunty June's star pulses/enlarges);
+                        step 2: click a star / "Open Aunty June for me" → opens PersonPanel;
+                        step 3: (PersonPanel open) dashboard explained — quick story (gold) + full story (purple) icon preview, tabs glow via tutorialHighlightTabs prop;
+                        step 4: Bunjil and Waa moiety + relationship lines, moiety filter cleared on exit;
+                        step 5: attribute planets (gold=nation/green=language/teal=community) + tap for info, tutorialHighlightPlanets prop on SolarSystemNode;
+                        step 6: Season Wheel standalone step — donut-arc SVG diagram, three bullet points explaining filter/clear/colour;
+                        step 7: opens Timeline via onOpenTimeline prop, introduces concept, tutorialTimelineGlow;
+                        step 8: (Timeline open) explains columns/filters/✦Summarise, tutorialTimelinePanelGlow;
+                        step 9: (QuickAddModal open via onOpenAddStar) explains all form fields, tutorialAddStarGlow;
+                        step 10: save icon — "Enter the sky ✦" completes tutorial, tutorialSaveGlow;
+                        dashboard brightening: filter:brightness(1.22) + gold border tint applied to
+                        open panel containers when their relevant tutorialHighlight* prop is true;
+                        individual interactive elements (buttons, filter rows) use animate-tutorial-box-glow;
+                        SeasonWheel gets z-[61] + animate-tutorial-spotlight at step 6;
+                        no skip-on-interaction — all advances are manual via the tutorial card button;
+                        props: onOpenPersonById, onOpenTimeline, onOpenAddStar, onClosePanel, onComplete,
+                        onStepChange (useCallback in SkyCanvas to prevent infinite loop), advanceRef,
+                        activePanel),
+                        SavePrompt (upsell for unauthenticated users with data; renders as a toolbar button — permanent, no dismiss — positioned below the Add a star button; tutorialHighlight prop → z-[61] + animate-tutorial-box-glow on button)
   panels/             — PersonPanel (profile/stories/connections/media tabs; stories tab is first-class
                         with quick-story form using season pill buttons + era dropdown + mic button +
                         language toggle (EN·AU/EN·US/EN·GB) and full story list; "✦ Summarise stories"
@@ -113,10 +137,13 @@ components/
                         and displays Claude-generated summary in a dismissable gold-bordered card above
                         the story list; connections tab shows invite link for self-star only; profile
                         Save button persists to localStorage + shows "Saved ✓" feedback; no duplicate
-                        delete section),
+                        delete section; inactive tab colour rgba(139,92,246,0.65) purple; close × button
+                        purple rgba(139,92,246,0.5) → hover gold rgba(212,164,84,0.75); + Add connection
+                        purple → hover gold; tutorialHighlightTabs prop → filter:brightness(1.22) + gold border),
                         QuickAddModal (name + nation searchable dropdown (regions data, scrollable) +
                         language + community searchable dropdowns + moiety; clan removed; all fields blank
-                        on open (no pre-fill); × close button; onboarding visual style),
+                        on open (no pre-fill); × close button; onboarding visual style;
+                        tutorialHighlight prop → filter:brightness(1.22) + gold border),
                         StoryPanel (season pill buttons + era `<select>` dropdown + mic button with
                         language toggle EN·AU/EN·US/EN·GB),
                         AddConnectionPanel (purple/gold restyle),
@@ -124,7 +151,9 @@ components/
                         button in header — always visible when stories are displayed, one click calls
                         /api/summarize-stories with the current filtered set; summary renders in a gold-bordered
                         banner between header and filters, dismissable with ×; summary auto-clears when any
-                        filter changes; Milky Way click also opens this panel; panel height 58vh)
+                        filter changes; Milky Way click also opens this panel; panel height 58vh;
+                        tutorialHighlight prop → filter:brightness(1.22) + gold borderTop on container,
+                        animate-tutorial-box-glow on filter row + Summarise button)
   onboarding/         — RegionSelector (5-step Victorian Indigenous profile: name → nation → language
                         group → community → moiety; clan + skin name removed; moiety inferred from
                         nation/community; language group distinct from Nation name (one Nation may hold
@@ -145,7 +174,7 @@ components/
   │     └── 5-step Victorian Indigenous profile form (RegionSelector)
   │           └── AccountCreationOverlay (username + password — no email, no Supabase call)
   │                 ├── Create account → localStorage kinstellation_account + tutorial_pending → /canvas
-  │                 │     └── TutorialOverlay (4-step interactive, clears flag on complete)
+  │                 │     └── TutorialOverlay (11-step interactive, clears flag on complete)
   │                 └── "Skip for now" → /canvas (no tutorial)
   └── "Sign in" → SignInModal
         ├── Sign in with credentials → /canvas (no tutorial)
@@ -246,7 +275,7 @@ Only do this when you need to test auth specifically. Normal UI work should use 
 2. Open a **private/incognito browser window** — avoids stale session cookies.
 3. Visit `http://localhost:3000`
 4. Click **"Begin your constellation"** → `/onboarding`
-5. Complete the 6-step Victorian profile form → account creation overlay appears
+5. Complete the 5-step Victorian profile form → account creation overlay appears
 6. Enter username + password → "Create account & enter the sky" → `/canvas` with tutorial
 7. Complete the tutorial or dismiss it
 8. Sign out → returns to `/`

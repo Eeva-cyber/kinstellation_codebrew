@@ -20,6 +20,12 @@ interface SolarSystemNodeProps {
   boosted?: boolean;
   activeSeasonIds?: string[];
   linked?: boolean;
+  /** Tutorial step 1: shine/pulse the main sun circle */
+  tutorialSpotlit?: boolean;
+  /** Tutorial step 3: glow the inner-orbit attribute planets */
+  tutorialHighlightPlanets?: boolean;
+  /** Tutorial step 0: gentle pulse ring on all stars */
+  tutorialAllPulse?: boolean;
   onHoverIn?: () => void;
   onHoverOut?: () => void;
   onSunClick: () => void;
@@ -135,7 +141,9 @@ function Planet({ px, py, r, color, glow = true, spinDur = '9s' }: {
 export function SolarSystemNode({
   person, x, y, isSelf, isGuest, currentSeasonId, moietyNames,
   seasonalCalendar, connectionCount, zoom, dimmed = false, boosted = false,
-  activeSeasonIds, linked = false, onHoverIn, onHoverOut,
+  activeSeasonIds, linked = false,
+  tutorialSpotlit = false, tutorialHighlightPlanets = false, tutorialAllPulse = false,
+  onHoverIn, onHoverOut,
   onSunClick, onStoryClick, onPlanetClick, onAttributeClick, onMediaEntryClick, onDragStart,
 }: SolarSystemNodeProps) {
   const storyCount  = person.stories.length;
@@ -187,6 +195,51 @@ export function SolarSystemNode({
 
   return (
     <>
+    {/* ── Tutorial step 0: gentle pulse ring on all stars ── */}
+    {tutorialAllPulse && (
+      <circle cx={x} cy={y} r={baseRadius + 10} fill="none" stroke={sunColor} strokeWidth={1.5} opacity={0}>
+        <animate attributeName="opacity" values="0;0.38;0" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="r" values={`${baseRadius+10};${baseRadius+22};${baseRadius+10}`} dur="2s" repeatCount="indefinite" />
+      </circle>
+    )}
+
+    {/* ── Tutorial step 1: spotlight Aunty June — shine, enlarge, revert ── */}
+    {tutorialSpotlit && (
+      <>
+        {/* Outer expanding halo */}
+        <circle cx={x} cy={y} r={baseRadius + 40} fill={sunColor} opacity={0}>
+          <animate attributeName="opacity" values="0;0.22;0" dur="1.5s" repeatCount="indefinite" />
+          <animate attributeName="r" values={`${baseRadius+40};${baseRadius+62};${baseRadius+40}`} dur="1.5s" repeatCount="indefinite" />
+        </circle>
+        {/* Inner glow ring */}
+        <circle cx={x} cy={y} r={baseRadius + 18} fill="none" stroke={sunColor} strokeWidth={3} opacity={0}>
+          <animate attributeName="opacity" values="0;0.85;0" dur="1.5s" repeatCount="indefinite" />
+          <animate attributeName="r" values={`${baseRadius+18};${baseRadius+32};${baseRadius+18}`} dur="1.5s" repeatCount="indefinite" />
+        </circle>
+        {/* Core brightness pulse */}
+        <circle cx={x} cy={y} r={baseRadius} fill={sunColor} opacity={0}>
+          <animate attributeName="opacity" values="0;0.4;0" dur="1.5s" repeatCount="indefinite" />
+          <animate attributeName="r" values={`${baseRadius};${baseRadius*1.45};${baseRadius}`} dur="1.5s" repeatCount="indefinite" />
+        </circle>
+      </>
+    )}
+
+    {/* ── Tutorial step 3: highlight inner-orbit attribute planets ── */}
+    {tutorialHighlightPlanets && identityAttrs.map((attr, i) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / identityAttrs.length;
+      const { px, py } = planetPos(x, y, ORBITS.inner.radius, angle);
+      return (
+        <g key={`thl-${i}`}>
+          <circle cx={px} cy={py} r={ORBITS.inner.planetRadius + 9} fill={attr.color} opacity={0}>
+            <animate attributeName="opacity" values="0;0.4;0" dur="1.4s" repeatCount="indefinite" begin={`${i * 0.18}s`} />
+          </circle>
+          <circle cx={px} cy={py} r={ORBITS.inner.planetRadius + 5} fill={attr.color} opacity={0}>
+            <animate attributeName="opacity" values="0;0.6;0" dur="1.4s" repeatCount="indefinite" begin={`${i * 0.18}s`} />
+          </circle>
+        </g>
+      );
+    })}
+
     <g opacity={bodyOpacity} className="transition-opacity duration-500">
 
       {/* Nebula atmosphere */}

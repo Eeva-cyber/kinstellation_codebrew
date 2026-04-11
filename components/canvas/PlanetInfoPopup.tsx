@@ -1,6 +1,26 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import { regions } from '@/lib/data/regions';
+
+// ── Read-aloud helper ────────────────────────────────────────────────────────
+function speakText(text: string): void {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.88; u.pitch = 1.0; u.volume = 1.0;
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find(v => v.lang === 'en-AU')
+    ?? voices.find(v => v.lang === 'en-GB')
+    ?? voices.find(v => v.lang.startsWith('en'))
+    ?? null;
+  if (voice) u.voice = voice; else u.lang = 'en-AU';
+  window.speechSynthesis.speak(u);
+}
+function stopSpeech(): void {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+}
 
 export interface AttributeClickInfo {
   type: 'nation' | 'language' | 'community';
@@ -113,14 +133,54 @@ export function PlanetInfoPopup({ info, onClose, onViewProfile }: PlanetInfoPopu
   const typeLabel = TYPE_LABELS[info.type] ?? info.type;
   const c = info.color;
 
+  const [speaking, setSpeaking] = useState(false);
+
   // When we match via language substring, frame the content as language info rather than nation info
   const isLanguageSubstringMatch = info.type === 'language' && region &&
     !region.displayName.toLowerCase().includes(info.value.toLowerCase().substring(0, 4));
 
+  // Build the spoken text for this popup
+  const buildScript = useCallback(() => {
+    const parts: string[] = [`${typeLabel}: ${info.value}.`];
+    if (communityEntry) {
+      parts.push(communityEntry.text);
+      parts.push(communityEntry.detail);
+    } else if (region) {
+      if (region.countryDescription) parts.push(`Country: ${region.countryDescription}`);
+      if (region.description && !isLanguageSubstringMatch) parts.push(region.description);
+      if (isLanguageSubstringMatch)
+        parts.push(`${info.value} is a language of the ${region.displayName} people, spoken on Country in ${region.stateTerritory ?? 'Victoria'}. Language and Country are inseparable — the language carries knowledge of the land, seasons, and law.`);
+    } else {
+      parts.push(TYPE_CONTEXT[info.type] ?? '');
+    }
+    return parts.filter(Boolean).join(' ');
+  }, [communityEntry, region, isLanguageSubstringMatch, info, typeLabel]);
+
+  const handleSpeak = useCallback(() => {
+    if (speaking) {
+      stopSpeech();
+      setSpeaking(false);
+    } else {
+      const script = buildScript();
+      speakText(script);
+      setSpeaking(true);
+      // Estimate duration to reset speaking state (rough: ~140 words/min at rate 0.88)
+      const wordCount = script.split(' ').length;
+      const estimatedMs = (wordCount / 140) * 60_000 * (1 / 0.88) + 500;
+      setTimeout(() => setSpeaking(false), estimatedMs);
+    }
+  }, [speaking, buildScript]);
+
+  const handleClose = useCallback(() => {
+    stopSpeech();
+    setSpeaking(false);
+    onClose();
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" />
 
@@ -158,16 +218,45 @@ export function PlanetInfoPopup({ info, onClose, onViewProfile }: PlanetInfoPopu
                 </h2>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none shrink-0 transition-all"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.45)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.80)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
-              aria-label="Close"
+            {/* Action buttons: read aloud + close */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={handleSpeak}
+                title={speaking ? 'Stop reading' : 'Read aloud'}
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                style={{
+                  background: speaking ? `${c}22` : 'rgba(255,255,255,0.04)',
+                  border: speaking ? `1px solid ${c}66` : '1px solid rgba(255,255,255,0.10)',
+                  boxShadow: speaking ? `0 0 10px ${c}33` : 'none',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = `${c}1a`; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = speaking ? `${c}22` : 'rgba(255,255,255,0.04)'; }}
+                aria-label={speaking ? 'Stop reading' : 'Read aloud'}
+              >
+                {speaking ? (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="3" y="3" width="3" height="8" rx="1" fill={c} />
+                    <rect x="8" y="3" width="3" height="8" rx="1" fill={c} />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M1.5 5H4l3-3v10l-3-3H1.5V5z" fill="rgba(255,255,255,0.5)" />
+                    <path d="M9 4a4 4 0 010 6" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" strokeLinecap="round" />
+                    <path d="M10.5 2a7 7 0 010 10" stroke="rgba(255,255,255,0.25)" strokeWidth="1" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={handleClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none shrink-0 transition-all"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.45)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.80)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
+                aria-label="Close"
             >
               &times;
             </button>
+            </div>
           </div>
 
           {/* Community-specific description */}
@@ -259,7 +348,7 @@ export function PlanetInfoPopup({ info, onClose, onViewProfile }: PlanetInfoPopu
               </span>
             </div>
             <button
-              onClick={() => { onViewProfile(); onClose(); }}
+              onClick={() => { onViewProfile(); handleClose(); }}
               className="text-xs px-3 py-1.5 rounded-xl transition-all font-medium"
               style={{ background: 'rgba(88,28,135,0.35)', border: '1px solid rgba(139,92,246,0.35)', color: 'rgba(212,164,84,0.85)' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(88,28,135,0.55)'; }}

@@ -146,6 +146,24 @@ body {
   50%       { transform: translateY(-12px); }
 }
 
+/* Tutorial spotlight — pulsing drop-shadow for UI element highlights (SVG/text) */
+@keyframes tutorialSpotlight {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(212,164,84,0.45)); }
+  50%       { filter: drop-shadow(0 0 18px rgba(212,164,84,0.95)) drop-shadow(0 0 36px rgba(212,164,84,0.5)); }
+}
+.animate-tutorial-spotlight {
+  animation: tutorialSpotlight 1.4s ease-in-out infinite;
+}
+
+/* Tutorial box glow — pulsing border+shadow for HTML buttons/containers */
+@keyframes tutorialBoxGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(212,164,84,0.25), 0 0 6px rgba(212,164,84,0.2); }
+  50%       { box-shadow: 0 0 0 2px rgba(212,164,84,0.75), 0 0 22px rgba(212,164,84,0.55), 0 0 40px rgba(212,164,84,0.25); }
+}
+.animate-tutorial-box-glow {
+  animation: tutorialBoxGlow 1.4s ease-in-out infinite;
+}
+
 /* Global scrollbar */
 ::-webkit-scrollbar {
   width: 4px;

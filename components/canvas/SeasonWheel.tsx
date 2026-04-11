@@ -460,9 +460,10 @@ interface SeasonWheelProps {
   activeSeasonFilters: string[];
   onSeasonClick: (seasonId: string) => void;
   onClearFilters: () => void;
+  tutorialHighlight?: boolean;
 }
 
-export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters }: SeasonWheelProps) {
+export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters, tutorialHighlight }: SeasonWheelProps) {
   const { state } = useApp();
   const seasons = state.seasonalCalendar?.seasons ?? [];
   const currentSeasonId = state.currentSeasonId;
@@ -500,7 +501,7 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
   const gradIds = seasons.map((s) => `seg-grad-${s.id}`);
 
   return (
-    <div className="absolute bottom-4 left-4 z-[50] select-none flex flex-col gap-1">
+    <div className={`absolute bottom-4 left-4 select-none flex flex-col gap-1${tutorialHighlight ? ' z-[61]' : ' z-[50]'}`}>
       {/* Season info card — shows on hover or when a filter is active; rendered above the wheel */}
       {displaySeason && (
         <div
@@ -543,7 +544,7 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
           )}
         </div>
       )}
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="drop-shadow-2xl">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={`drop-shadow-2xl${tutorialHighlight ? ' animate-tutorial-spotlight' : ''}`}>
         <defs>
           {/* Radial gradient per segment */}
           {seasons.map((season, i) => (

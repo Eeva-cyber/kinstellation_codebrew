@@ -25,7 +25,7 @@ export const kinshipTemplates: Record<KinshipTemplateType, KinshipTemplate> = {
    */
   kulin_nation: {
     templateType: 'kulin_nation',
-    moietyNames: ['Bunjil (Eaglehawk)', 'Waa (Crow)'],
+    moietyNames: ['Bunjil', 'Waa'],
     description:
       'Kulin Nation peoples of Victoria follow the Bunjil and Waa moiety system. ' +
       'Bunjil (the Wedge-tailed Eagle) and Waa (the Crow) are creator spirits who gave life and law to Country. ' +

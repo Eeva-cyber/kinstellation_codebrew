@@ -216,17 +216,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     // Hackathon demo mode: always start fresh from hardcoded demo data.
-    // Force Warlpiri region so moiety filter + seasonal calendar load automatically.
+    // Force Wurundjeri region so Bunjil/Waa moiety filter + seasonal calendar load automatically.
     // Reset tutorial flag so it shows on every cold load.
     localStorage.removeItem('kinstellation_data');
-    localStorage.setItem(REGION_KEY, 'warlpiri');
+    localStorage.setItem(REGION_KEY, 'wurundjeri');
     localStorage.setItem('kinstellation_tutorial_pending', 'true');
 
-    // Load Warlpiri region data now (overrides any savedRegion from above)
-    const warlpiriRegion = regions.find((r) => r.id === 'warlpiri');
-    if (warlpiriRegion) {
-      seasonalCalendar = allCalendars[warlpiriRegion.calendarId];
-      kinshipTemplate  = kinshipTemplates[warlpiriRegion.kinshipTemplateType];
+    // Load Wurundjeri region data now (overrides any savedRegion from above)
+    const wurundjeriRegion = regions.find((r) => r.id === 'wurundjeri');
+    if (wurundjeriRegion) {
+      seasonalCalendar = allCalendars[wurundjeriRegion.calendarId];
+      kinshipTemplate  = kinshipTemplates[wurundjeriRegion.kinshipTemplateType];
       currentSeasonId  = getCurrentSeason(seasonalCalendar)?.id ?? null;
     }
 
@@ -238,7 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       payload: {
         persons,
         relationships,
-        selectedRegion: 'warlpiri',
+        selectedRegion: 'wurundjeri',
         seasonalCalendar,
         kinshipTemplate,
         currentSeasonId,

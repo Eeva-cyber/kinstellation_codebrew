@@ -139,6 +139,8 @@ interface PersonPanelProps {
   onAddStory: (personId: string) => void;
   onAddConnection: (personId: string) => void;
   onMediaEntryClick?: (entry: MediaEntry) => void;
+  /** Tutorial step 2: glow all four tab buttons to guide the user */
+  tutorialHighlightTabs?: boolean;
 }
 
 type Tab = 'profile' | 'stories' | 'connections' | 'media';
@@ -217,15 +219,22 @@ function DateSeasonInput({
 export function PersonPanel({
   person, isSelf, focusSection, onClose,
   onAddStory, onAddConnection, onMediaEntryClick,
+  tutorialHighlightTabs = false,
 }: PersonPanelProps) {
   const { state, dispatch } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>(
-    focusSection === 'connections' ? 'connections'
+    tutorialHighlightTabs ? 'stories'
+    : focusSection === 'connections' ? 'connections'
     : focusSection === 'stories' ? 'stories'
     : 'profile',
   );
+
+  // Switch to stories tab when tutorial dashboard step activates
+  useEffect(() => {
+    if (tutorialHighlightTabs) setActiveTab('stories');
+  }, [tutorialHighlightTabs]);
 
   // ── Profile state ──────────────────────────────────────────────────────────
   const [displayName, setDisplayName]       = useState(person.displayName);
@@ -427,7 +436,11 @@ export function PersonPanel({
   return (
     <div className="absolute top-0 right-0 h-full z-30 animate-slide-right select-auto" style={{ width: '28rem' }} onMouseDown={(e) => e.stopPropagation()}>
       <div ref={scrollRef} className="h-full flex flex-col backdrop-blur-xl panel-scroll"
-        style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}>
+        style={{
+          background: 'rgba(8,4,22,0.97)',
+          borderLeft: '1px solid rgba(88,28,135,0.4)',
+          ...(tutorialHighlightTabs && { filter: 'brightness(1.22)', borderLeft: '1px solid rgba(212,164,84,0.35)' }),
+        }}>
 
         {/* ── Header ── */}
         <div className="flex-shrink-0 px-6 pt-6 pb-0">
@@ -441,7 +454,10 @@ export function PersonPanel({
               )}
             </div>
             <button onClick={onClose} className="text-lg leading-none transition-colors"
-              style={{ color: 'rgba(255,255,255,0.3)' }} aria-label="Close">
+              style={{ color: 'rgba(139,92,246,0.5)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(212,164,84,0.75)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(139,92,246,0.5)'; }}
+              aria-label="Close">
               &times;
             </button>
           </div>
@@ -459,10 +475,10 @@ export function PersonPanel({
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(88,28,135,0.25)' }}>
             {(['profile', 'stories', 'connections', 'media'] as Tab[]).map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className="flex-1 py-2 rounded-lg text-xs font-medium transition-all capitalize"
+                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all capitalize${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
                 style={{
                   background: activeTab === tab ? 'rgba(88,28,135,0.5)' : 'transparent',
-                  color: activeTab === tab ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.60)',
+                  color: activeTab === tab ? 'rgba(212,164,84,0.95)' : 'rgba(139,92,246,0.65)',
                   border: activeTab === tab ? '1px solid rgba(212,164,84,0.25)' : '1px solid transparent',
                 }}>
                 {tab === 'stories' ? `stories${person.stories.length > 0 ? ` (${person.stories.length})` : ''}` : tab}
@@ -743,14 +759,14 @@ export function PersonPanel({
               ) : (
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setShowQuickStory(true)}
-                    className="flex-1 text-sm py-2.5 rounded-xl transition-all"
+                    className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
                     style={{ color: 'rgba(212,164,84,0.7)', border: '1px solid rgba(212,164,84,0.2)', background: 'rgba(212,164,84,0.05)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.1)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.05)'; }}>
                     + Quick story
                   </button>
                   <button onClick={() => onAddStory(person.id)}
-                    className="flex-1 text-sm py-2.5 rounded-xl transition-all"
+                    className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
                     style={{ color: 'rgba(139,92,246,0.7)', border: '1px solid rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.05)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.1)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.05)'; }}>
@@ -778,7 +794,10 @@ export function PersonPanel({
                 ))
               )}
               <button onClick={() => onAddConnection(person.id)}
-                className="text-xs transition-colors py-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                className={`text-xs transition-colors py-1${tutorialHighlightTabs ? ' animate-tutorial-box-glow rounded-lg px-2' : ''}`}
+                style={{ color: 'rgba(139,92,246,0.55)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(212,164,84,0.7)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(139,92,246,0.55)'; }}>
                 + Add connection
               </button>
 

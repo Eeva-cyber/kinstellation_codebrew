@@ -9,6 +9,7 @@ import type { Person, Region } from '@/lib/types';
 interface QuickAddModalProps {
   onClose: () => void;
   onPersonAdded?: (personId: string) => void;
+  tutorialHighlight?: boolean;
 }
 
 // ── Searchable dropdown matching onboarding style ─────────────────────────────
@@ -210,7 +211,7 @@ function NationSearchInput({
   );
 }
 
-export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
+export function QuickAddModal({ onClose, onPersonAdded, tutorialHighlight }: QuickAddModalProps) {
   const { state, dispatch } = useApp();
   const [displayName, setDisplayName] = useState('');
   const [nation,      setNation]      = useState('');
@@ -288,10 +289,11 @@ export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
         className="relative rounded-2xl p-7 w-96 shadow-2xl animate-fade-in"
         style={{
           background:    'rgba(8,4,22,0.98)',
-          border:        '1px solid rgba(139,92,246,0.4)',
+          border:        tutorialHighlight ? '1px solid rgba(212,164,84,0.45)' : '1px solid rgba(139,92,246,0.4)',
           boxShadow:     '0 0 60px rgba(88,28,135,0.3), 0 25px 50px rgba(0,0,0,0.75)',
           maxHeight:     '90vh',
           overflowY:     'auto',
+          ...(tutorialHighlight && { filter: 'brightness(1.22)' }),
         }}
         onMouseDown={e => e.stopPropagation()}
       >
@@ -322,7 +324,7 @@ export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
 
         <div className="space-y-4">
           {/* Name */}
-          <div>
+          <div className="">
             <label style={LABEL}>Name</label>
             <StyledInput
               value={displayName}
@@ -334,7 +336,7 @@ export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
           </div>
 
           {/* Nation */}
-          <div>
+          <div className="">
             <label style={LABEL}>Nation <span style={OPT}>(optional)</span></label>
             <NationSearchInput
               value={nation}
@@ -346,7 +348,7 @@ export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
           </div>
 
           {/* Language group */}
-          <div>
+          <div className="">
             <label style={LABEL}>Language group <span style={OPT}>(optional)</span></label>
             <SearchInput
               value={language}
@@ -377,7 +379,7 @@ export function QuickAddModal({ onClose, onPersonAdded }: QuickAddModalProps) {
 
           {/* Moiety toggle */}
           {moietyNames && (
-            <div>
+            <div className="">
               <label style={LABEL}>Moiety <span style={OPT}>(optional)</span></label>
               <div className="flex gap-2">
                 {moietyNames.map(m => (

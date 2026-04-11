@@ -77,6 +77,8 @@ export function SkyCanvas() {
   const [showInviteOverlay, setShowInviteOverlay] = useState(false);
   const pendingCenterId = useRef<string | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(-1);
+  const tutorialAdvanceRef = useRef<(() => void) | null>(null);
   const [hoveredPersonId, setHoveredPersonId] = useState<string | null>(null);
   const [hoveredRelId, setHoveredRelId] = useState<string | null>(null);
 
@@ -554,6 +556,17 @@ export function SkyCanvas() {
     p.stories.map((s) => ({ ...s, personName: p.displayName, personId: p.id })),
   );
 
+  // Tutorial highlight states — which UI element glows at each step
+  // Step layout: 0=mouse, 1=welcome, 2=click star, 3=dashboard, 4=moiety, 5=planets, 6=season wheel, 7=timeline, 8=inside timeline, 9=add star, 10=save
+  const tutorialHighlightDashboard = showTutorial && tutorialStep === 3;
+  const tutorialMoietyGlow         = showTutorial && tutorialStep === 4;
+  const tutorialSeasonWheelGlow    = showTutorial && tutorialStep === 6;
+  const tutorialTimelineGlow       = showTutorial && tutorialStep === 7;
+  const tutorialTimelinePanelGlow  = showTutorial && tutorialStep === 8;
+  const tutorialAddStarGlow        = showTutorial && tutorialStep === 9;
+  const tutorialAddStarFormGlow    = showTutorial && tutorialStep === 9;
+  const tutorialSaveGlow           = showTutorial && tutorialStep === 10;
+
   function isPersonDimmed(person: Person): boolean {
     if (activeMoiety && person.moiety !== activeMoiety) return true;
     return false;
@@ -606,6 +619,14 @@ export function SkyCanvas() {
   const zoomIn  = useCallback(() => applyZoomStep(+0.15), []); // eslint-disable-line react-hooks/exhaustive-deps
   const zoomOut = useCallback(() => applyZoomStep(-0.15), []); // eslint-disable-line react-hooks/exhaustive-deps
   const zoomReset = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
+
+  const handleTutorialStepChange = useCallback((s: number) => {
+    setTutorialStep(s);
+    // Clear moiety filter when leaving the moiety step so the sky resets
+    if (s === 5) setActiveMoiety(null);
+    // Clear season filter when leaving the season wheel step
+    if (s === 7) setFilterSeasonIds([]);
+  }, []);
 
   return (
     <div
@@ -736,6 +757,9 @@ export function SkyCanvas() {
                 boosted={isPersonBoosted(person)}
                 activeSeasonIds={filterSeasonIds.length > 0 ? filterSeasonIds : undefined}
                 linked={isPersonLinked(person.id)}
+                tutorialSpotlit={showTutorial && tutorialStep === 2 && person.id === 'demo-1'}
+                tutorialHighlightPlanets={showTutorial && tutorialStep === 5}
+                tutorialAllPulse={showTutorial && (tutorialStep === 0 || tutorialStep === 1)}
                 onHoverIn={() => setHoveredPersonId(person.id)}
                 onHoverOut={() => setHoveredPersonId(null)}
                 onSunClick={() => handleSunClick(person.id)}
@@ -754,8 +778,9 @@ export function SkyCanvas() {
       {activePanel !== 'timeline' && (
         <SeasonWheel
           activeSeasonFilters={filterSeasonIds}
-          onSeasonClick={toggleSeasonFilter}
+          onSeasonClick={(id) => { toggleSeasonFilter(id); }}
           onClearFilters={() => setFilterSeasonIds([])}
+          tutorialHighlight={tutorialSeasonWheelGlow}
         />
       )}
 
@@ -763,13 +788,13 @@ export function SkyCanvas() {
       {moietyNames && dimensions.width > 0 && (
         <>
           <div
-            className="absolute top-6 z-20 pointer-events-auto"
+            className={`absolute top-6 pointer-events-auto ${tutorialMoietyGlow ? 'z-[61]' : 'z-20'}`}
             style={{ left: `${dimensions.width * 0.25}px`, transform: 'translateX(-50%)' }}
           >
             <WordTooltip term={moietyNames[0]} direction="down">
               <span
                 onClick={(e) => { e.stopPropagation(); setActiveMoiety((prev) => prev === moietyNames[0] ? null : moietyNames[0]); }}
-                className="cursor-pointer text-sm font-medium tracking-[0.18em] uppercase transition-all duration-300 select-none"
+                className={`cursor-pointer text-sm font-medium tracking-[0.18em] uppercase transition-all duration-300 select-none${tutorialMoietyGlow ? ' animate-tutorial-spotlight' : ''}`}
                 style={{
                   color: activeMoiety === moietyNames[0] ? 'rgba(212,160,87,1)' : activeMoiety ? 'rgba(212,160,87,0.3)' : 'rgba(212,160,87,0.85)',
                   textShadow: activeMoiety === moietyNames[0]
@@ -782,13 +807,13 @@ export function SkyCanvas() {
             </WordTooltip>
           </div>
           <div
-            className="absolute top-6 z-20 pointer-events-auto"
+            className={`absolute top-6 pointer-events-auto ${tutorialMoietyGlow ? 'z-[61]' : 'z-20'}`}
             style={{ left: `${dimensions.width * 0.75}px`, transform: 'translateX(-50%)' }}
           >
             <WordTooltip term={moietyNames[1]} direction="down">
               <span
                 onClick={(e) => { e.stopPropagation(); setActiveMoiety((prev) => prev === moietyNames[1] ? null : moietyNames[1]); }}
-                className="cursor-pointer text-sm font-medium tracking-[0.18em] uppercase transition-all duration-300 select-none"
+                className={`cursor-pointer text-sm font-medium tracking-[0.18em] uppercase transition-all duration-300 select-none${tutorialMoietyGlow ? ' animate-tutorial-spotlight' : ''}`}
                 style={{
                   color: activeMoiety === moietyNames[1] ? 'rgba(140,170,230,1)' : activeMoiety ? 'rgba(140,170,230,0.3)' : 'rgba(140,170,230,0.85)',
                   textShadow: activeMoiety === moietyNames[1]
@@ -883,7 +908,7 @@ export function SkyCanvas() {
 
 
       {/* Bottom toolbar — larger purple/gold FABs */}
-      <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-3 items-end">
+      <div className={`absolute bottom-6 right-6 ${tutorialTimelineGlow || tutorialAddStarGlow || tutorialSaveGlow ? 'z-[61]' : 'z-20'} flex flex-col gap-3 items-end`}>
         {/* Save progress — above timeline, only for unauthed users with data */}
         <div className="flex items-center gap-3 group/tl">
           <span className="text-xs opacity-0 group-hover/tl:opacity-100 transition-all duration-200 tracking-wide font-light" style={{ color: 'rgba(255,255,255,0.5)' }}>
@@ -891,7 +916,7 @@ export function SkyCanvas() {
           </span>
           <button
             onClick={() => setActivePanel('timeline')}
-            className="w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg"
+            className={`w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg${tutorialTimelineGlow ? ' animate-tutorial-spotlight' : ''}`}
             style={{ background: 'rgba(88,28,135,0.55)', border: '1px solid rgba(139,92,246,0.35)', boxShadow: '0 4px 24px rgba(88,28,135,0.3)' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(109,40,217,0.7)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(88,28,135,0.55)'; e.currentTarget.style.transform = 'scale(1)'; }}
@@ -931,7 +956,7 @@ export function SkyCanvas() {
           </span>
           <button
             onClick={handleAddPerson}
-            className="w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg"
+            className={`w-14 h-14 rounded-2xl backdrop-blur-sm transition-all duration-200 flex items-center justify-center group shadow-lg${tutorialAddStarGlow ? ' animate-tutorial-spotlight' : ''}`}
             style={{ background: 'rgba(88,28,135,0.55)', border: '1px solid rgba(212,164,84,0.3)', boxShadow: '0 4px 24px rgba(88,28,135,0.3)' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(109,40,217,0.7)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(88,28,135,0.55)'; e.currentTarget.style.transform = 'scale(1)'; }}
@@ -943,7 +968,7 @@ export function SkyCanvas() {
           </button>
         </div>
         {/* Save progress — below Add a star, only for unauthed users with data */}
-        <SavePrompt />
+        <SavePrompt tutorialHighlight={tutorialSaveGlow} />
       </div>
 
       {/* Scroll hint — bottom centre, fades after first wheel event */}
@@ -980,6 +1005,7 @@ export function SkyCanvas() {
             setActivePanel('person');
             centerOnPerson(personId);
           }}
+          tutorialHighlight={tutorialAddStarFormGlow}
         />
       )}
       {activePanel === 'person' && activePerson && (
@@ -991,6 +1017,7 @@ export function SkyCanvas() {
           onAddStory={(personId) => handleOpenStoryPanel(personId)}
           onAddConnection={(personId) => handleOpenConnectionPanel(personId)}
           onMediaEntryClick={(entry) => setActiveMediaEntry({ entry, person: activePerson })}
+          tutorialHighlightTabs={tutorialHighlightDashboard}
         />
       )}
       {activePanel === 'story' && activePerson && (
@@ -1013,6 +1040,7 @@ export function SkyCanvas() {
         <TimelinePanel
           onClose={handleClosePanel}
           onStoryClick={(personId) => handleSunClick(personId)}
+          tutorialHighlight={tutorialTimelinePanelGlow}
         />
       )}
 
@@ -1028,14 +1056,17 @@ export function SkyCanvas() {
       {/* Tutorial overlay — new users only */}
       {showTutorial && (
         <TutorialOverlay
-          onOpenPersonById={(id) => {
-            handleSunClick(id);
-            // close tutorial card without completing so user still sees remaining steps
-          }}
+          activePanel={activePanel}
+          onOpenPersonById={(id) => { handleSunClick(id); }}
           onOpenTimeline={() => setActivePanel('timeline')}
+          onOpenAddStar={() => setActivePanel('addPerson')}
+          onClosePanel={() => setActivePanel(null)}
+          onStepChange={handleTutorialStepChange}
+          advanceRef={tutorialAdvanceRef}
           onComplete={() => {
             localStorage.removeItem('kinstellation_tutorial_pending');
             setShowTutorial(false);
+            setTutorialStep(-1);
           }}
         />
       )}
