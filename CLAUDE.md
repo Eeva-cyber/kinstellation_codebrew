@@ -24,6 +24,8 @@ These are not separate features. They are the same system viewed from different 
 - **Season wheel filter.** A circular season wheel in the bottom-left corner lets users filter the canvas by season. When active: two-pass rendering — the whole solar system node dims to near-invisible (5–10% opacity), then matching story dots + their connecting dashed lines render in a separate highlight layer at full brightness with glow halos. Stars with no matching stories dim to 5%, stars with matching stories dim to 10% with their relevant dots glowing on top. Constellation lines (ConstellationLine) also dim to near-invisible when season filter is active. Moiety filter still dims non-matching stars via the `dimmed` prop. Info card appears **above** the wheel on hover or when a filter is active — displays season name, English gloss, description, and a clear-filter button. `SeasonIndicator` (old bottom-left tab) is removed.
 - **Story-to-sun lines.** Each story planet (outer orbit) has a dashed connecting line back to the central sun. Lines use the story's season color and follow the star when dragged.
 - **Speech-to-text.** The story text box in StoryPanel, the quick-story textarea in PersonPanel, and the edit textarea in StoryPopup all have a mic button (Web Speech API). Each mic includes a language toggle (EN·AU / EN·US / EN·GB) shown as a small pill badge. Tap to start, tap again to stop — transcribed text appends to the story content.
+- **Voice story recording.** `AudioRecorderModal` (`components/ui/AudioRecorderModal.tsx`) is a full-screen modal for recording a story as audio. It records via the MediaRecorder API, shows a live elapsed timer, lets the user play back the recording before saving, and attaches the audio blob as a `Story` with `type: 'audio'`. Saves with title, season tag, era, and visibility. An `InlineAudioRecorder` sub-component is embedded directly inside StoryPanel's content area for in-panel recording. A microphone/record button in PersonPanel's quick-story form and StoryPanel opens `AudioRecorderModal`. Permissions errors (denied microphone) are surfaced inline.
+- **File attachment.** An inline "Attach a file" form in PersonPanel's stories section (below "Record a yarn") follows the same pattern as voice recording. Any file type is supported — images, PDFs, documents. The file is read via `FileReader.readAsDataURL()` and saved as a `Story` with `type: 'file'` and the base64 data URL as `content`. Includes season pill buttons and era dropdown identical to the voice recording flow. Size warning at 5 MB, hard block at 10 MB (localStorage limit). `StoryPopup` renders file stories: image files show an inline preview, PDFs embed in an iframe, all files include a download link. `StoryType` includes `'file'` as a valid value.
 - **Story generation picker.** StoryPanel (full story), PersonPanel quick-story form, and StoryPopup (edit mode) all include a "When did this happen?" `<select>` dropdown with six ERA_OPTIONS: Not sure · Country's making · Elders' time · Parents' time · Our time · Time unknown. Selection maps to a representative `year` value stored on the Story, which feeds directly into the Timeline Generation filter.
 - **Timeline panel.** A bottom-slide panel shows all stories distributed across seasonal columns.
 - **"I'm not sure" path.** Never make users feel inadequate. Onboarding offers a generic fallback for both kinship and seasonal knowledge.
@@ -104,6 +106,13 @@ components/
                         MilkyWay, MoietyRegions, SeasonalAmbient,
                         SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes,
                         TutorialOverlay (11-step cohesive tutorial written at elementary school level;
+                        AUDIO GUIDE: before step 0 a prompt screen asks "Would you like a voice guide?"
+                        — choosing yes sets audioEnabled=true; each step auto-speaks its script via
+                        Web Speech API (window.speechSynthesis); prefers a male en-AU voice, falls back
+                        to en-GB then any English; audio script is a plain-English narration per step
+                        stored in AUDIO_SCRIPTS[]; mute/unmute button visible on every step card when
+                        audio is enabled; speakText() cancels any in-progress utterance before starting;
+                        effective step −1 while audio prompt is showing (reported to parent via onStepChange);
                         steps 0–3 use DarkBackdrop (z-[59], rgba(2,1,8,0.68)) — full canvas dim so card
                         "brightens" by contrast; steps 4–10 use SoftBackdrop (rgba(2,1,8,0.38)) so open
                         panels remain visible through the overlay;
@@ -121,6 +130,7 @@ components/
                         step 8: (Timeline open) explains columns/filters/✦Summarise, tutorialTimelinePanelGlow;
                         step 9: (QuickAddModal open via onOpenAddStar) explains all form fields, tutorialAddStarGlow;
                         step 10: save icon — "Enter the sky ✦" completes tutorial, tutorialSaveGlow;
+                        SKIP BUTTON: every card (including the audio prompt) shows a × close button in the top-right of the DotRow that calls onComplete() immediately, stopping speech and dismissing the tutorial without completing all steps;
                         dashboard brightening: filter:brightness(1.22) + gold border tint applied to
                         open panel containers when their relevant tutorialHighlight* prop is true;
                         individual interactive elements (buttons, filter rows) use animate-tutorial-box-glow;
@@ -145,7 +155,8 @@ components/
                         on open (no pre-fill); × close button; onboarding visual style;
                         tutorialHighlight prop → filter:brightness(1.22) + gold border),
                         StoryPanel (season pill buttons + era `<select>` dropdown + mic button with
-                        language toggle EN·AU/EN·US/EN·GB),
+                        language toggle EN·AU/EN·US/EN·GB; InlineAudioRecorder sub-component embedded
+                        in the content area — record → playback → attach audio blob as Story type:audio),
                         AddConnectionPanel (purple/gold restyle),
                         TimelinePanel (4 filters: person, season, generation, voice; "✦ Summarise N stories"
                         button in header — always visible when stories are displayed, one click calls
@@ -163,6 +174,10 @@ components/
                         StoryPopup (view/edit story — pen icon toggle, mic + language toggle
                         (EN·AU/EN·US/EN·GB) in edit mode, season pill buttons + era `<select>` dropdown in
                         edit mode, single × close, no cultural weight bar),
+                        AudioRecorderModal (full-screen modal; MediaRecorder API; live elapsed timer;
+                        playback before save; saves Story type:audio with title/season/era/visibility;
+                        inline permission error display; opened from PersonPanel quick-story form and
+                        StoryPanel record button),
                         WordTooltip
 ```
 
@@ -183,9 +198,9 @@ components/
 
 ## Auth & data flow
 
-- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → `supabase.auth.signUp({ email: username@kinstellation.app, password })`. Email confirmation must be **disabled** in Supabase for immediate session.
-- **Sign in**: `SignInModal` → `supabase.auth.signInWithPassword` (username→email) or Google OAuth or magic link.
-- **Session**: `proxy.ts` (Next.js middleware) calls `supabase.auth.getUser()` on every request to refresh the session cookie and enforce route protection.
+- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → stores `{ username, pwd: btoa(password), created }` in localStorage (`kinstellation_account`). No Supabase call. "Skip for now" goes directly to `/canvas` with no account saved.
+- **Sign in**: `SignInModal` → reads `kinstellation_account` from localStorage, validates username + password locally. No Supabase call. Google OAuth and magic-link are still available as alternatives for users who prefer them.
+- **Route protection**: `proxy.ts` middleware no longer guards `/canvas` — all routes are open, matching local dev behaviour. Supabase session is not required to access any page.
 - **Self-person**: Created by `RegionSelector.handleFinish()` → saved to localStorage (`kinstellation_profile`, `kinstellation_self_id`). `SkyCanvas` reads these on mount and creates the `Person` node if missing.
 - **Tutorial flag**: Set to `'true'` in localStorage (`kinstellation_tutorial_pending`) after successful account creation. `SkyCanvas` reads it on mount; `TutorialOverlay` clears it on completion.
 - **Demo data**: `AppContext` seeds `DEMO_PERSONS` + `DEMO_RELATIONSHIPS` only when both `kinstellation_data` and `kinstellation_self_id` are absent (brand-new browser session).
@@ -201,7 +216,7 @@ components/
 | `kinstellation_self_id` | UUID of the user's own Person node |
 | `kinstellation_region` | Selected region ID |
 | `kinstellation_tutorial_pending` | `'true'` while tutorial hasn't been completed |
-| `kinstellation_account` | `{ username, created }` — local-only account record (no Supabase) |
+| `kinstellation_account` | `{ username, pwd: btoa(password), created }` — local-only account record (no Supabase) |
 
 ## Onboarding profile fields (RegionSelector)
 

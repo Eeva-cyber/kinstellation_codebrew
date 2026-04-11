@@ -1,71 +1,81 @@
 # Kinstellation
 
-A kinship-based oral history platform for Aboriginal and Torres Strait Islander communities. People are stars, families are constellations, and time is measured in Indigenous seasons.
+**Constellation Kinship** — a kinship-based oral history platform built for Aboriginal and Torres Strait Islander communities.
 
-## What it is
+People are stars. Families are constellations. Time is measured in Indigenous seasons.
 
-Kinstellation lets communities map their kinship networks as a living star map. Each person is a solar system — their stories orbit them as planets, growing brighter as more stories are recorded. Families form constellations connected by relationship lines. The sky is divided by moiety. Stories are tagged to Indigenous seasons, not Gregorian months.
+---
 
-Built specifically for Victorian Indigenous communities, with support for Kulin nation moiety systems (Bunjil/Waa), skin names, clan groups, and seasonal calendars (Noongar, Yolngu, D'harawal, Torres Strait, and generic).
+## Running locally (for judges)
 
-## Getting started (dev)
-
-**Prerequisites:** Node.js 18+, a `.env.local` file from the project lead.
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://cgkwxvjvocvcjtvucjcj.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<get from project lead>
-DEV_SKIP_AUTH=true
-```
+**Requirements:** Node.js 18 or higher.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). With `DEV_SKIP_AUTH=true`, all pages are accessible without a Supabase account — canvas, onboarding, and all UI features work via localStorage.
+Open **http://localhost:3000** — no accounts or configuration needed.
 
-## User flow
+The app loads with three demo Wurundjeri Woi Wurrung community members already on the canvas and an interactive tutorial that walks you through every feature. You can skip the tutorial at any time using the **×** button on the tutorial card.
 
-1. **Landing page** (`/`) — "Begin your constellation" or "Sign in"
-2. **Onboarding** (`/onboarding`) — 6-step Victorian Indigenous profile: name → nation → clan → community → skin name → moiety (auto-inferred from nation/clan/community)
-3. **Account creation** — username + password overlay at the end of onboarding (creates a Supabase account with synthetic email `username@kinstellation.app`)
-4. **Canvas** (`/canvas`) — interactive star map; new users see a 4-step tutorial
-5. **Returning users** — sign in via SignInModal on the landing page → canvas directly, no tutorial
+---
+
+## What you'll see
+
+### The sky canvas
+An interactive star map where each person is a solar system. Their stories orbit them as planets, growing brighter as more are added. Drag to pan, scroll to zoom, click any star to open their profile.
+
+### Solar systems
+- **Inner orbit** — gold, green, and teal planets show Nation, language group, and community. Click any planet for cultural context specific to Victorian Koorie Country.
+- **Outer orbit** — story planets. Colour-coded by Indigenous season. Click to read, play audio, or view attached files.
+- **Far orbit** — media entries (photos, articles, videos).
+
+### Stories
+Every person can hold multiple types of stories:
+- **Quick story** — short text note, tagged to a season and era
+- **Full story** — expanded editor with speech-to-text (microphone)
+- **Voice recording** — record audio directly in the browser, played back as a story planet
+- **File attachment** — attach any image, PDF, or document; images preview inline, PDFs embed, all files download
+
+### Seasonal calendar
+Stories are tagged to Indigenous seasons (Noongar, Yolngu, D'harawal, Torres Strait, or generic Kulin) rather than Gregorian months. The **season wheel** in the bottom-left filters the entire canvas by season — matching story planets glow while everything else dims.
+
+### Kinship and moiety
+The canvas is split into two moiety halves (Bunjil / Waa for the Wurundjeri demo). Relationship lines are gold (direct family), purple (classificatory/totemic), or red dashed (avoidance). Clicking a moiety label dims the opposite side.
+
+### Timeline panel
+Bottom toolbar → clock icon. All stories distributed across seasonal columns with filters by person, season, generation (Elders' time / Our time / etc.), and story type. A **✦ Summarise** button generates an AI summary of the current filtered view.
+
+### Adding to the sky
+Bottom toolbar → **+** button. Add a new person with their name, Nation, language group, and moiety. Their star appears immediately.
+
+---
 
 ## Tech stack
 
-- Next.js 16.2.3 (App Router, Turbopack)
-- React 19.2.4 + TypeScript
+- Next.js 16 (App Router, Turbopack)
+- React 19 + TypeScript
 - Tailwind CSS v4
-- D3.js (force simulation for star layout)
-- Supabase (auth + Postgres)
+- D3.js — force simulation for constellation layout
+- All data stored locally in the browser (localStorage) — no server required for the demo
 
-## Key features
+---
 
-- **D3 force simulation** — stars repel/attract based on relationships; drag stars to rearrange
-- **Zoom-reveal** — zooming in reveals planet labels (skin name, story titles, media count)
-- **Moiety canvas split** — two halves reflecting the moiety system; clicking a moiety name dims unrelated stars
-- **Season wheel** — filter the canvas by Indigenous season; ambient sky colour shifts with the current season
-- **Stories River** — click the Milky Way band to see all stories across the constellation
-- **Timeline panel** — stories distributed across seasonal columns
-- **Relationship lines** — gold (direct family), purple (classificatory), red (avoidance); all with glow halos
-- **Interactive tutorial** — new users guided through adding their first family member
-- **Invite system** — share a 7-day link to connect another user's star to yours
+## Cultural safety
+
+- Deceased persons warning banner on all profiles
+- Visibility controls on every person and story (public / family only / restricted / gendered)
+- "I'm not sure" paths throughout — users are never made to feel inadequate for not knowing kinship details
+- Season calendar source attribution displayed on-screen
+- Language follows AIATSIS guidelines: "Aboriginal and Torres Strait Islander peoples" or specific group names
+
+---
 
 ## Commands
 
 ```bash
-npm run dev      # dev server with Turbopack (http://localhost:3000)
+npm run dev      # development server — http://localhost:3000
 npm run build    # production build
 npm run start    # production server
 ```
-
-## Cultural safety
-
-This platform is built with cultural sensitivity in mind:
-- Deceased persons warning banner
-- Visibility controls on every person and story (public / family / restricted / gendered)
-- "I'm not sure" paths throughout — users are never made to feel inadequate
-- Seasonal calendar source attribution
-- Language follows AIATSIS guidelines
