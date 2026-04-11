@@ -1,46 +1,34 @@
 import type { KinshipTemplate, KinshipTemplateType } from '../types';
 
 export const kinshipTemplates: Record<KinshipTemplateType, KinshipTemplate> = {
+  /**
+   * Generic two-moiety system. Used for non-Kulin Victorian groups
+   * whose specific moiety names are not yet documented here.
+   * Moiety law — the two complementary halves of creation — exists
+   * across many Victorian language groups, though names vary by Country.
+   */
   moiety_only: {
     templateType: 'moiety_only',
-    moietyNames: ['Dhuwa', 'Yirritja'],
     description:
-      'Two moieties divide all of creation into complementary halves. Every person, animal, plant, and natural phenomenon belongs to one moiety.',
+      'Your Country has a moiety system — two complementary halves that organise kinship, marriage, and ceremony. ' +
+      'Every person, animal, plant and element of Country belongs to one half. ' +
+      'Specific moiety names vary by language group and may not be publicly recorded here yet.',
   },
-  four_section: {
-    templateType: 'four_section',
-    moietyNames: ['Burung', 'Gamilaraay'],
-    sectionNames: ['Murri', 'Kubbi', 'Ippai', 'Kumbo'],
+
+  /**
+   * Kulin Nation — the five language groups of central and southern Victoria.
+   * Bunjil (Wedge-tailed Eagle) and Waa (Crow) are the two creator-spirit moieties.
+   * Every Kulin person, animal, and element of Country belongs to one moiety.
+   * You must marry into the opposite moiety.
+   * Sources: Wurundjeri Woi Wurrung Cultural Heritage Aboriginal Corporation;
+   * First Peoples – State Relations (Victorian Government).
+   */
+  kulin_nation: {
+    templateType: 'kulin_nation',
+    moietyNames: ['Bunjil (Eaglehawk)', 'Waa (Crow)'],
     description:
-      'Four skin groups (sections) govern marriage rules and social obligations. Your section determines who you can marry and your children\'s section.',
-  },
-  eight_subsection: {
-    templateType: 'eight_subsection',
-    moietyNames: ['Sun side', 'Shade side'],
-    sectionNames: [
-      'Japanangka', 'Jupurrurla', 'Jakamarra', 'Jampijinpa',
-      'Japangardi', 'Jungarrayi', 'Japaljarri', 'Jangala',
-    ],
-    description:
-      'Eight subsections provide a detailed system of kinship classification. Each subsection has specific relationships and obligations to all others.',
-  },
-  gendered_subsection: {
-    templateType: 'gendered_subsection',
-    moietyNames: ['Sun side', 'Shade side'],
-    sectionNames: [
-      'Japanangka/Napanangka', 'Jupurrurla/Napurrurla',
-      'Jakamarra/Nakamarra', 'Jampijinpa/Nampijinpa',
-      'Japangardi/Napangardi', 'Jungarrayi/Nungarrayi',
-      'Japaljarri/Napaljarri', 'Jangala/Nangala',
-    ],
-    genderedPrefixes: { male: 'J', female: 'N' },
-    description:
-      'Eight subsections with gendered prefixes (J- for men, N- for women). This system is used by Warlpiri and related Central/Western Desert language groups.',
-  },
-  torres_strait_clan: {
-    templateType: 'torres_strait_clan',
-    moietyNames: ['Koey Buway (Land)', 'Koey Buway (Sea)'],
-    description:
-      'Torres Strait Islander kinship is organised through clan-totem groups tied to specific islands and marine territories. Identity comes from your island, your totem (augadh), and your clan.',
+      'Kulin Nation peoples of Victoria follow the Bunjil and Waa moiety system. ' +
+      'Bunjil (the Wedge-tailed Eagle) and Waa (the Crow) are creator spirits who gave life and law to Country. ' +
+      'Your moiety is inherited and governs marriage, ceremony, and responsibility to Country.',
   },
 };

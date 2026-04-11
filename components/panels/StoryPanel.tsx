@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useApp } from '@/lib/store/AppContext';
-import { SeasonPicker } from '@/components/ui/SeasonPicker';
 import type { Person, Story, StoryType, Visibility } from '@/lib/types';
 
 interface StoryPanelProps {
@@ -10,14 +9,158 @@ interface StoryPanelProps {
   onClose: () => void;
 }
 
+// Minimal Web Speech API types (not in standard TS lib)
+interface ISpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: ISpeechRecognitionEvent) => void) | null;
+  onerror: ((e: Event) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+interface ISpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: { transcript: string };
+}
+interface ISpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: ISpeechRecognitionResult[];
+}
+interface ISpeechRecognitionCtor {
+  new(): ISpeechRecognition;
+}
+
+function getSpeechRecognition(): ISpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition ?? null;
+}
+
+const LANG_OPTIONS = [
+  { code: 'en-AU', label: 'EN·AU' },
+  { code: 'en-US', label: 'EN·US' },
+  { code: 'en-GB', label: 'EN·GB' },
+];
+
+function MicButton({ onTranscript }: { onTranscript: (text: string) => void }) {
+  const [listening, setListening] = useState(false);
+  const [lang, setLang] = useState('en-AU');
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
+
+  if (!getSpeechRecognition()) return null;
+
+  function toggle() {
+    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
+    const SR = getSpeechRecognition(); if (!SR) return;
+    const rec = new SR();
+    rec.continuous = true; rec.interimResults = true; rec.lang = lang;
+    rec.onresult = (e: ISpeechRecognitionEvent) => {
+      let final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      }
+      if (final) onTranscript(final);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    rec.start(); recognitionRef.current = rec; setListening(true);
+  }
+
+  return (
+    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1">
+      {/* Language selector */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowLangPicker(v => !v)}
+          className="text-[9px] px-1.5 py-0.5 rounded-md leading-tight"
+          style={{
+            background: 'rgba(88,28,135,0.2)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            color: 'rgba(139,92,246,0.6)',
+          }}
+        >
+          {LANG_OPTIONS.find(l => l.code === lang)?.label ?? lang}
+        </button>
+        {showLangPicker && (
+          <div
+            className="absolute bottom-full right-0 mb-1 rounded-lg overflow-hidden z-20"
+            style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(139,92,246,0.3)', boxShadow: '0 4px 16px rgba(0,0,0,0.6)' }}
+          >
+            {LANG_OPTIONS.map(opt => (
+              <button
+                key={opt.code}
+                type="button"
+                onClick={() => { setLang(opt.code); setShowLangPicker(false); }}
+                className="w-full px-3 py-1.5 text-[10px] text-left whitespace-nowrap"
+                style={{
+                  color: opt.code === lang ? 'rgba(212,164,84,0.9)' : 'rgba(255,255,255,0.55)',
+                  background: opt.code === lang ? 'rgba(88,28,135,0.4)' : 'transparent',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Mic button */}
+      <button
+        type="button"
+        onClick={toggle}
+        title={listening ? 'Stop recording' : 'Speak your story'}
+        className="p-1.5 rounded-lg transition-all"
+        style={{
+          background: listening ? 'rgba(248,113,113,0.2)' : 'rgba(88,28,135,0.25)',
+          border: `1px solid ${listening ? 'rgba(248,113,113,0.5)' : 'rgba(139,92,246,0.3)'}`,
+          color: listening ? 'rgba(248,113,113,0.9)' : 'rgba(139,92,246,0.7)',
+          position: 'relative',
+        }}
+      >
+        {listening ? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="4.5" y="1" width="5" height="7" rx="2.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M2 7a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="7" y1="12" x2="7" y2="13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        )}
+        {listening && (
+          <span
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full animate-star-pulse"
+            style={{ background: 'rgba(248,113,113,0.9)' }}
+          />
+        )}
+      </button>
+    </div>
+  );
+}
+
+// Generation/era options — mirrors TimelinePanel ERA_GROUPS
+const ERA_OPTIONS = [
+  { id: '',            label: 'Not sure',        year: undefined   },
+  { id: 'immemorial',  label: "Country's making", year: 1850        },
+  { id: 'elders',      label: "Elders' time",     year: 1925        },
+  { id: 'parents',     label: "Parents' time",    year: 1965        },
+  { id: 'living',      label: 'Our time',         year: 1995        },
+  { id: 'unknown',     label: 'Time unknown',     year: undefined   },
+];
+
 export function StoryPanel({ person, onClose }: StoryPanelProps) {
-  const { dispatch } = useApp();
+  const { state, dispatch } = useApp();
 
   const [title, setTitle] = useState('');
   const [storyType, setStoryType] = useState<StoryType>('text');
   const [content, setContent] = useState('');
   const [seasonTag, setSeasonTag] = useState('unsure');
   const [seasonalContext, setSeasonalContext] = useState('');
+  const [eraId, setEraId] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('family');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -38,6 +181,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
     if (storyType === 'text' && !content.trim()) return;
     if (storyType === 'photo' && !content) return;
 
+    const eraYear = ERA_OPTIONS.find((e) => e.id === eraId)?.year;
     const story: Story = {
       id: crypto.randomUUID(),
       title: title.trim(),
@@ -46,6 +190,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
       recordedBy: '',
       recordedDate: new Date().toISOString(),
       seasonTag,
+      year: eraYear,
       seasonalContext: seasonalContext.trim() || undefined,
       visibility,
       linkedPersonIds: [person.id],
@@ -56,11 +201,14 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
   }
 
   const INPUT_CLS = "w-full rounded-lg px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none transition-colors";
-  const INPUT_STYLE = { background: 'rgba(88,28,135,0.14)', border: '1px solid rgba(139,92,246,0.2)', color: 'rgba(255,255,255,0.82)' };
-  const LABEL_STYLE = { color: 'rgba(212,164,84,0.65)' };
+  const INPUT_STYLE = { background: 'rgba(88,28,135,0.14)', border: '1px solid rgba(139,92,246,0.2)', color: 'rgba(255,255,255,0.90)' };
+  const LABEL_STYLE = { color: 'rgba(212,164,84,0.85)' };
 
   return (
-    <div className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto">
+    <div
+      className="absolute top-0 right-0 h-full w-[22rem] z-30 animate-slide-right select-auto"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div
         className="h-full backdrop-blur-xl panel-scroll"
         style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}
@@ -95,6 +243,8 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
                 placeholder="Give this story a name"
                 className={INPUT_CLS}
                 style={INPUT_STYLE}
+                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(212,164,84,0.45)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(139,92,246,0.2)')}
               />
             </div>
 
@@ -128,15 +278,20 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
             {storyType === 'text' ? (
               <div>
                 <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Story</label>
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  placeholder="Tell the story..."
-                  rows={6}
-                  className="w-full rounded-lg px-3 py-2.5 text-sm placeholder:text-white/20 focus:outline-none resize-none"
-                  style={INPUT_STYLE}
-                />
+                <div className="relative">
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    placeholder="Tell the story… or use the mic to speak it"
+                    rows={6}
+                    className="w-full rounded-lg px-3 py-2.5 pr-10 text-sm placeholder:text-white/20 focus:outline-none resize-none"
+                    style={INPUT_STYLE}
+                  />
+                  <MicButton
+                    onTranscript={(text) => setContent((prev) => prev ? prev + ' ' + text : text)}
+                  />
+                </div>
               </div>
             ) : (
               <div>
@@ -154,8 +309,65 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
               </div>
             )}
 
-            {/* Season picker */}
-            <SeasonPicker value={seasonTag} onChange={setSeasonTag} />
+            {/* Season — pill buttons */}
+            <div>
+              <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Which season does this belong to?</label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSeasonTag('unsure')}
+                  className="px-3 py-1.5 rounded-lg text-xs transition-all"
+                  style={seasonTag === 'unsure' ? {
+                    background: 'rgba(88,28,135,0.55)',
+                    border: '1px solid rgba(212,164,84,0.35)',
+                    color: 'rgba(212,164,84,0.9)',
+                  } : {
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(139,92,246,0.15)',
+                    color: 'rgba(255,255,255,0.38)',
+                  }}
+                >
+                  I&apos;m not sure yet
+                </button>
+                {(state.seasonalCalendar?.seasons ?? []).map((season) => (
+                  <button
+                    key={season.id}
+                    type="button"
+                    onClick={() => setSeasonTag(season.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                    style={seasonTag === season.id ? {
+                      background: 'rgba(88,28,135,0.55)',
+                      border: '1px solid rgba(212,164,84,0.35)',
+                      color: 'rgba(212,164,84,0.9)',
+                    } : {
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(139,92,246,0.15)',
+                      color: 'rgba(255,255,255,0.38)',
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: season.colorPalette.accentColor }} />
+                    {season.nameEnglish}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* When did this happen — dropdown */}
+            <div>
+              <label className="block text-xs mb-1.5" style={LABEL_STYLE}>
+                When did this happen? <span style={{ color: 'rgba(255,255,255,0.2)', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <select
+                value={eraId}
+                onChange={(e) => setEraId(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                style={INPUT_STYLE}
+              >
+                {ERA_OPTIONS.map((era) => (
+                  <option key={era.id} value={era.id}>{era.label}</option>
+                ))}
+              </select>
+            </div>
 
             {/* Seasonal context */}
             <div>
@@ -169,6 +381,8 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
                 placeholder="e.g. the wattle was flowering, emus were sitting on eggs"
                 className={INPUT_CLS}
                 style={INPUT_STYLE}
+                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(212,164,84,0.45)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(139,92,246,0.2)')}
               />
             </div>
 

@@ -14,14 +14,17 @@ These are not separate features. They are the same system viewed from different 
 
 ## Key design principles
 
-- **Solar systems = people.** Each person is a sun with orbiting planets representing their attributes (skin name, birth, stories, media). Sun brightness and size scale with story count AND connection count. Unstudied stars fade (decay mechanic based on `lastUpdated`).
+- **Solar systems = people.** Each person is a sun with orbiting planets representing their attributes (nation, language group, community, stories, media). Sun brightness and size scale with story count AND connection count. Unstudied stars fade (decay mechanic based on `lastUpdated`). Planets are **static** (no orbital motion) — each slowly rotates on its own axis via SVG `animateTransform` on the specular highlight with a distinct spin duration (8s–14s). Planet labels are positioned radially outward from the star center to prevent overlap; text-anchor switches between `start`/`middle`/`end` based on which quadrant the planet sits in. Clicking an attribute planet (inner orbit: nation/language/community) opens `PlanetInfoPopup` with region-specific cultural context.
 - **Galaxies = families.** Connected solar systems form a galaxy. Relationship lines are organic and non-hierarchical, not Western top-down trees. Line style encodes relationship type (solid = direct, dashed = classificatory, dotted red = avoidance).
 - **Moieties = sky regions.** Canvas is split into two halves reflecting the moiety system. D3 force simulation pushes nodes toward their moiety's region.
 - **Milky Way = river of stories.** A luminous diagonal band across the canvas. Clicking it opens the Stories River panel showing all stories.
 - **Dark constellations (negative space).** Empty areas represent missing knowledge. Solar systems with no stories or connections show dashed orbit rings — knowledge waiting to be discovered. Essential sensitivity for Stolen Generations families.
 - **Zoom-reveal detail.** Zooming in (≥1.3x) reveals planet labels (skin name, story titles, media count, connection count). Zooming out hides them for a clean overview. Scroll wheel zooms, drag pans.
-- **Season picker, not date picker.** Story creation uses a season-based temporal input. Users can select "unsure" and assign later.
-- **Season wheel filter.** A circular season wheel in the bottom-left corner lets users filter the canvas by season — non-matching solar systems dim.
+- **Season picker, not date picker.** Story creation uses season pill buttons (driven from `state.seasonalCalendar.seasons`) — not a dropdown picker. Each pill shows a colour swatch and the season's English name. The "When did this happen?" era selector uses a `<select>` dropdown with six ERA_OPTIONS (Not sure · Country's making · Elders' time · Parents' time · Our time · Time unknown). Both controls appear in StoryPanel, PersonPanel quick-story form, and StoryPopup edit mode.
+- **Season wheel filter.** A circular season wheel in the bottom-left corner lets users filter the canvas by season. When active: two-pass rendering — the whole solar system node dims to near-invisible (5–10% opacity), then matching story dots + their connecting dashed lines render in a separate highlight layer at full brightness with glow halos. Stars with no matching stories dim to 5%, stars with matching stories dim to 10% with their relevant dots glowing on top. Constellation lines (ConstellationLine) also dim to near-invisible when season filter is active. Moiety filter still dims non-matching stars via the `dimmed` prop. Info card appears **above** the wheel on hover or when a filter is active — displays season name, English gloss, description, and a clear-filter button. `SeasonIndicator` (old bottom-left tab) is removed.
+- **Story-to-sun lines.** Each story planet (outer orbit) has a dashed connecting line back to the central sun. Lines use the story's season color and follow the star when dragged.
+- **Speech-to-text.** The story text box in StoryPanel, the quick-story textarea in PersonPanel, and the edit textarea in StoryPopup all have a mic button (Web Speech API). Each mic includes a language toggle (EN·AU / EN·US / EN·GB) shown as a small pill badge. Tap to start, tap again to stop — transcribed text appends to the story content.
+- **Story generation picker.** StoryPanel (full story), PersonPanel quick-story form, and StoryPopup (edit mode) all include a "When did this happen?" `<select>` dropdown with six ERA_OPTIONS: Not sure · Country's making · Elders' time · Parents' time · Our time · Time unknown. Selection maps to a representative `year` value stored on the Story, which feeds directly into the Timeline Generation filter.
 - **Timeline panel.** A bottom-slide panel shows all stories distributed across seasonal columns.
 - **"I'm not sure" path.** Never make users feel inadequate. Onboarding offers a generic fallback for both kinship and seasonal knowledge.
 
@@ -39,10 +42,10 @@ These are not separate features. They are the same system viewed from different 
 
 ```
 app/
-  page.tsx                    — Renders LandingPage (hero + feature sections + CTA)
-  onboarding/page.tsx         — 4-step wizard: name → country → mob → skin name → /canvas
+  page.tsx                    — Renders SplashScreen (landing page: "Begin your constellation" + "Sign in")
+  onboarding/page.tsx         — 5-step Victorian Indigenous profile form (RegionSelector) + account creation overlay at the end
   canvas/page.tsx             — Main sky canvas
-  login/page.tsx              — Magic link OTP + Google OAuth login; passes ?next= to callback
+  login/page.tsx              — Redirects to / (auth is handled inline by SignInModal)
   auth/callback/route.ts      — Exchanges Supabase auth code, redirects to ?next= (defaults /)
   api/
     analyze-story/route.ts    — AI story impact scoring (1–10)
@@ -50,16 +53,17 @@ app/
     invite/accept/route.ts    — POST: validates token, creates user_connections row
   invite/[token]/page.tsx     — Invite landing page; unauthenticated → login CTA, authenticated → connect
 
-proxy.ts (middleware)         — Route protection: /canvas + /onboarding require auth; redirects to
-                                /login?next=<path>. /invite/* allowed unauthenticated. Auth users
-                                visiting /login are redirected to /canvas.
+proxy.ts (middleware)         — Route protection: only /canvas requires auth; /onboarding is open (account
+                                creation happens there). Unauthenticated canvas visitors redirect to /.
+                                /login redirects to /. /invite/* always allowed. DEV_SKIP_AUTH bypass.
 
 lib/
   types.ts            — All TypeScript types (Person has isGuest?: boolean for connected users)
   data/               — Seasonal calendars, kinship templates, region configs (static JSON)
-  store/AppContext.tsx — React Context + useReducer; syncs to Supabase (persons, stories, relationships);
-                         auto-creates self-person for new users from auth metadata;
-                         loads guest stars from user_connections table; signOut clears localStorage
+  data/demo-nodes.ts  — Three demo persons + two relationships seeded for brand-new sessions
+  store/AppContext.tsx — React Context + useReducer; localStorage-first persistence;
+                         seeds demo data only for brand-new sessions (no saved data AND no self_id);
+                         Supabase auth listener for user state; signOut clears all localStorage keys
   utils/season.ts     — Season detection, star radius/opacity calculations
   supabase.ts         — Supabase client (browser)
   supabase-server.ts  — Supabase client (server/SSR)
@@ -68,29 +72,99 @@ supabase/
   migrations/001_invitations_and_connections.sql — invitations + user_connections tables
 
 components/
-  canvas/             — SkyCanvas (zoom/pan/D3 force + invite overlay in bottom toolbar),
-                        SolarSystemNode (sun + orbit planets; isGuest dims to 55% opacity),
-                        ConstellationLine, MilkyWay, MoietyRegions, SeasonalAmbient,
-                        SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes
-  panels/             — PersonPanel (collapsible sections, inline quick-story form;
-                        isSelf prop shows invite link UI),
-                        QuickAddModal, StoryPanel, AddConnectionPanel,
-                        StoriesRiverPanel, TimelinePanel
-  onboarding/         — RegionSelector (single dropdown, simplified)
-  ui/                 — SeasonPicker, StoryPopup, WordTooltip
+  splash/             — SplashScreen (landing page: galaxy aesthetic, two CTAs)
+  auth/               — SignInModal (username+password + Google OAuth + magic link; "Create one" → /onboarding)
+  canvas/             — SkyCanvas (zoom/pan/D3 force + tutorial + save prompt + invite overlay;
+                        manages `activePlanetInfo` state for PlanetInfoPopup),
+                        SolarSystemNode (sun + static orbit planets; inner orbit shows nation/language/community
+                        as colour-coded attribute planets — gold=nation, green=language, teal=community;
+                        planets have axis-spin only (no orbital rotation); labels positioned radially outward
+                        via `radialLabel()` helper with dynamic text-anchor; clicking attribute planets fires
+                        `onAttributeClick(AttributeClickInfo)`; isGuest dims to 55% opacity),
+                        PlanetInfoPopup (modal popup shown when an attribute planet is clicked; looks up the
+                        clicked value in the regions database; shows Victoria/NSW-specific cultural context for
+                        nations, language groups, and communities including Koorie/Koori; "View full profile →"
+                        opens PersonPanel; exports `AttributeClickInfo` interface),
+                        ConstellationLine (gold/purple colour scheme with glow halos),
+                        MilkyWay, MoietyRegions, SeasonalAmbient,
+                        SeasonIndicator, SeasonWheel, StarFieldBg, GalaxyShapes,
+                        TutorialOverlay (4-step interactive tutorial for new users),
+                        SavePrompt (upsell for unauthenticated users with data; renders as a toolbar button — permanent, no dismiss — positioned below the Add a star button)
+  panels/             — PersonPanel (profile/stories/connections/media tabs; stories tab is first-class
+                        with quick-story form using season pill buttons + era dropdown + mic button +
+                        language toggle (EN·AU/EN·US/EN·GB) and full story list; connections tab shows
+                        invite link for self-star only; profile Save button persists to localStorage +
+                        shows "Saved ✓" feedback; no duplicate delete section),
+                        QuickAddModal (name + nation searchable dropdown (regions data, scrollable) +
+                        language + community searchable dropdowns + moiety; clan removed; all fields blank
+                        on open (no pre-fill); × close button; onboarding visual style),
+                        StoryPanel (season pill buttons + era `<select>` dropdown + mic button with
+                        language toggle EN·AU/EN·US/EN·GB),
+                        AddConnectionPanel (purple/gold restyle),
+                        StoriesRiverPanel,
+                        TimelinePanel (4 filters: person, season, generation, voice — each in own column
+                        with icon + bold label + gold count badge; dropdown checkboxes with scroll, no
+                        search bar, overflow clipping fixed; generation uses Aboriginal generational time
+                        groups (Country's making / Elders' time / Parents' time / Our time / Time unknown);
+                        voice filters by story medium (Yarning/audio, Vision/photo|video, Written words/text);
+                        filter labels show profile language group; Law filter removed; panel height 58vh)
+  onboarding/         — RegionSelector (5-step Victorian Indigenous profile: name → nation → language
+                        group → community → moiety; clan + skin name removed; moiety inferred from
+                        nation/community; language group distinct from Nation name (one Nation may hold
+                        several languages); pentagonal 5-star constellation progress indicator;
+                        AccountCreationOverlay after completion)
+  ui/                 — SeasonPicker (used in media entries only; story forms use inline pill buttons instead),
+                        StoryPopup (view/edit story — pen icon toggle, mic + language toggle
+                        (EN·AU/EN·US/EN·GB) in edit mode, season pill buttons + era `<select>` dropdown in
+                        edit mode, single × close, no cultural weight bar),
+                        WordTooltip
+```
+
+## User flow
+
+```
+/ (SplashScreen)
+  ├── "Begin your constellation" → /onboarding
+  │     └── 5-step Victorian Indigenous profile form (RegionSelector)
+  │           └── AccountCreationOverlay (username + password)
+  │                 ├── Create account → localStorage.setItem('kinstellation_tutorial_pending','true') → /canvas
+  │                 │     └── TutorialOverlay (4-step interactive, clears flag on complete)
+  │                 └── "Skip for now" → /canvas (no tutorial)
+  └── "Sign in" → SignInModal
+        ├── Sign in with credentials → /canvas (no tutorial)
+        └── "Create one" → /onboarding
 ```
 
 ## Auth & data flow
 
-- **Login**: `/login` → Supabase `signInWithOtp` (magic link) or `signInWithOAuth` (Google). Both pass `?next=` to the callback so users land on `/canvas`.
+- **Account creation**: `/onboarding` → `RegionSelector` 5-step profile → `AccountCreationOverlay` → `supabase.auth.signUp({ email: username@kinstellation.app, password })`. Email confirmation must be **disabled** in Supabase for immediate session.
+- **Sign in**: `SignInModal` → `supabase.auth.signInWithPassword` (username→email) or Google OAuth or magic link.
 - **Session**: `proxy.ts` (Next.js middleware) calls `supabase.auth.getUser()` on every request to refresh the session cookie and enforce route protection.
-- **Self-person**: On first load, `AppContext` auto-creates a `Person` row in Supabase using the auth user's display name / email. The person ID is stored in `localStorage` as `kinstellation_self_id`. On subsequent loads the ID is read from localStorage; for existing users without the key, `AppContext` matches by display name and sets it.
-- **Guest stars**: Connected users' stars are loaded from the `user_connections` table and rendered with `isGuest: true` (55% opacity, no edit controls).
+- **Self-person**: Created by `RegionSelector.handleFinish()` → saved to localStorage (`kinstellation_profile`, `kinstellation_self_id`). `SkyCanvas` reads these on mount and creates the `Person` node if missing.
+- **Tutorial flag**: Set to `'true'` in localStorage (`kinstellation_tutorial_pending`) after successful account creation. `SkyCanvas` reads it on mount; `TutorialOverlay` clears it on completion.
+- **Demo data**: `AppContext` seeds `DEMO_PERSONS` + `DEMO_RELATIONSHIPS` only when both `kinstellation_data` and `kinstellation_self_id` are absent (brand-new browser session).
+- **Data persistence**: localStorage-first (`kinstellation_data`). No Supabase table reads/writes during frontend prototyping phase.
 - **Invite system**: Bottom-right toolbar link icon → `/api/invite/create` (POST) → returns a 7-day token → invite URL displayed. Recipient visits `/invite/[token]`, logs in if needed, then `/api/invite/accept` creates a `user_connections` row linking both users' self-persons.
+
+## localStorage keys
+
+| Key | Purpose |
+|-----|---------|
+| `kinstellation_data` | Persons + relationships JSON |
+| `kinstellation_profile` | Onboarding profile (name, nation, community, moiety, language) |
+| `kinstellation_self_id` | UUID of the user's own Person node |
+| `kinstellation_region` | Selected region ID |
+| `kinstellation_tutorial_pending` | `'true'` while tutorial hasn't been completed |
+
+## Onboarding profile fields (RegionSelector)
+
+The 5 steps collect: `name`, `nation` (NationSearch), `language` (LanguageSearch — at step 2, immediately after nation, since language is tied to Country), `community` (CommunitySearch — filtered by nation), `moiety`. Clan and skin name removed. Moiety is inferred from nation/community where documented; free-text fallback otherwise. All data is scoped to Victorian Indigenous communities.
+
+On completion, `saveProfileAndPerson()` creates **anchor stars** on the canvas for the user's nation and community (if provided), placed around the self-star. These serve as starting points for the constellation.
 
 ## Data model
 
-- **Person** — id, displayName, indigenousName, skinName, moiety, stories[], visibility, lastUpdated, position (x/y), isGuest?
+- **Person** — id, displayName, indigenousName, skinName, moiety, nation, clan, community, countryLanguageGroup, stories[], mediaEntries[], visibility, lastUpdated, position (x/y), isGuest?
 - **Relationship** — fromPersonId, toPersonId, relationshipType (12 types including classificatory), isAvoidance
 - **Story** — title, type (text/photo/audio/video), content, seasonTag (required), year (optional), seasonalContext, visibility
 - **SeasonalCalendar** — seasons[] each with name, approximateMonths, colorPalette, celestialIndicators
@@ -133,36 +207,39 @@ Visit `http://localhost:3000`. You can access `/canvas` and `/onboarding` direct
 
 ### What `DEV_SKIP_AUTH=true` does
 
-The middleware in `proxy.ts` normally protects `/canvas` and `/onboarding` — unauthenticated users are redirected to `/login`. Setting `DEV_SKIP_AUTH=true` in `.env.local` short-circuits this check so all routes are open. This is the default teammate mode for UI development.
+The middleware in `proxy.ts` normally protects `/canvas` — unauthenticated users are redirected to `/`. Setting `DEV_SKIP_AUTH=true` in `.env.local` short-circuits this check so all routes are open. This is the default teammate mode for UI development.
 
 **With bypass ON (`DEV_SKIP_AUTH=true`):**
 - All pages accessible without login
 - Canvas, onboarding, all visual/UI features work
 - SeasonWheel loads from localStorage if a region was previously selected
-- Adding persons, stories, relationships works (data stored locally / in Supabase if you happen to be logged in)
+- Adding persons, stories, relationships works (data stored in localStorage)
 
 **With bypass OFF (`DEV_SKIP_AUTH=false` or key removed):**
-- `/canvas` and `/onboarding` require a real Supabase session
-- Unauthenticated users are redirected to `/login?next=<path>`
-- Invite link generation, guest star loading, and data persistence to Supabase all require this mode
+- `/canvas` requires a real Supabase session; unauthenticated visitors are redirected to `/`
+- `/onboarding` is open without auth (account creation happens there)
+- Invite link generation, and data persistence to Supabase all require this mode
 
 ### Testing the full auth flow (landing → sign up → onboarding → canvas)
 
 Only do this when you need to test auth specifically. Normal UI work should use the bypass.
 
 1. Set `DEV_SKIP_AUTH=false` in `.env.local` (or comment the line out)
-2. Open a **private/incognito browser window** — this avoids stale session cookies from previous test runs. (If you use your normal window and have a valid session, visiting `/login` will immediately redirect you to `/canvas`, skipping the login form entirely.)
+2. Open a **private/incognito browser window** — avoids stale session cookies.
 3. Visit `http://localhost:3000`
-4. Scroll to the bottom CTA → click **"Weave your constellation"** → middleware redirects you to `/login?next=%2Fonboarding`
-5. Enter your email → "Send sign-in link"
-6. Check your inbox → click the magic link → lands on `/onboarding`
-7. Complete the 4 steps (name → country → mob → skin name) → **"Enter the sky →"** → `/canvas`
-8. When done testing, re-enable `DEV_SKIP_AUTH=true` so teammates are not blocked.
+4. Click **"Begin your constellation"** → `/onboarding`
+5. Complete the 6-step Victorian profile form → account creation overlay appears
+6. Enter username + password → "Create account & enter the sky" → `/canvas` with tutorial
+7. Complete the tutorial or dismiss it
+8. Sign out → returns to `/`
+9. Click **"Sign in"** → `SignInModal` → enter credentials → `/canvas` (no tutorial)
+10. When done testing, re-enable `DEV_SKIP_AUTH=true`.
 
-To clear an existing session without incognito: DevTools → Application → Cookies → delete all `sb-*` cookies for `localhost:3000`.
+To clear an existing session without incognito: DevTools → Application → Cookies → delete all `sb-*` cookies for `localhost:3000`. Also clear localStorage to reset demo data.
 
 ### Supabase project
 - Project URL: `https://cgkwxvjvocvcjtvucjcj.supabase.co`
+- Auth → Settings: **"Email confirmation"** must be **OFF** for `signUp` to return a session immediately (username→synthetic email pattern).
 - Auth → Settings: **"Skip nonce checks"** is ON (permissive, for dev). Turn it OFF before production.
 - Auth → URL Configuration: `http://localhost:3000/**` must be in Additional Redirect URLs for magic links to work on localhost.
 - Google OAuth callback URL registered in Google Cloud Console: `https://cgkwxvjvocvcjtvucjcj.supabase.co/auth/v1/callback`
@@ -174,5 +251,7 @@ To clear an existing session without incognito: DevTools → Application → Coo
 - Run the database migration in Supabase SQL Editor
 
 ### Styling
-- Miguel's `96ccf10` "UI Polish" commit was cherry-picked onto `main`. His styling takes priority for aesthetics (larger purple/gold toolbar buttons, new SeasonWheel, StarFieldBg). Functional additions (invite overlay, auth) were merged on top.
+- Purple/gold colour palette throughout: `rgba(88,28,135,*)` purple, `rgba(212,164,84,*)` gold, dark space backgrounds `rgba(4,3,10,*)`.
 - Bottom-right toolbar is a vertical stack: Story timeline → Invite someone → Add a star.
+- Constellation lines: gold for direct family, purple for classificatory/totemic, red for avoidance — all with soft glow halos.
+- AddConnectionPanel has live relationship type swatches previewing the actual line style.

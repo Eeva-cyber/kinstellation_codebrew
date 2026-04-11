@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useApp } from '@/lib/store/AppContext';
 
 /**
@@ -465,6 +466,7 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
   const { state } = useApp();
   const seasons = state.seasonalCalendar?.seasons ?? [];
   const currentSeasonId = state.currentSeasonId;
+  const [hoveredSeasonId, setHoveredSeasonId] = useState<string | null>(null);
 
   if (seasons.length === 0) return null;
 
@@ -490,14 +492,57 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
   const currentSeason = seasons.find((s) => s.id === currentSeasonId);
   const lastActiveId = activeSeasonFilters[activeSeasonFilters.length - 1] ?? null;
   const activeSeason = lastActiveId ? seasons.find((s) => s.id === lastActiveId) : null;
-  const displaySeason = activeSeason ?? currentSeason;
+  const hoveredSeason = hoveredSeasonId ? seasons.find((s) => s.id === hoveredSeasonId) : null;
+  const displaySeason = activeSeason ?? hoveredSeason ?? null;
   const centerColor = currentSeason?.colorPalette.accentColor ?? 'rgba(255,220,160,0.7)';
 
   // Gradient IDs per segment
   const gradIds = seasons.map((s) => `seg-grad-${s.id}`);
 
   return (
-    <div className="absolute bottom-4 left-4 z-[50] select-none">
+    <div className="absolute bottom-4 left-4 z-[50] select-none flex flex-col gap-1">
+      {/* Season info card — shows on hover or when a filter is active; rendered above the wheel */}
+      {displaySeason && (
+        <div
+          className="px-3 py-2 rounded-xl"
+          style={{
+            maxWidth: size,
+            background: 'rgba(4,3,14,0.82)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{
+                backgroundColor: displaySeason.colorPalette.accentColor,
+                boxShadow: `0 0 6px ${displaySeason.colorPalette.accentColor}`,
+              }}
+            />
+            <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>
+              {displaySeason.name}
+            </span>
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
+              {displaySeason.nameEnglish}
+            </span>
+          </div>
+          <p className="text-[9px] mt-0.5 leading-snug line-clamp-2" style={{ color: 'rgba(255,255,255,0.22)' }}>
+            {displaySeason.description.split('.')[0]}.
+          </p>
+          {activeSeasonFilters.length > 0 && (
+            <button
+              onClick={onClearFilters}
+              className="mt-1.5 text-[9px] uppercase tracking-wider transition-colors"
+              style={{ color: 'rgba(212,164,84,0.55)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(212,164,84,0.9)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(212,164,84,0.55)')}
+            >
+              clear {activeSeasonFilters.length > 1 ? `${activeSeasonFilters.length} filters` : 'filter'} ×
+            </button>
+          )}
+        </div>
+      )}
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="drop-shadow-2xl">
         <defs>
           {/* Radial gradient per segment */}
@@ -571,6 +616,8 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
           return (
             <g key={season.id}
               onClick={() => onSeasonClick(season.id)}
+              onMouseEnter={() => setHoveredSeasonId(season.id)}
+              onMouseLeave={() => setHoveredSeasonId(null)}
               className="cursor-pointer"
               role="button"
               aria-label={`Filter by ${season.name}`}
@@ -670,49 +717,6 @@ export function SeasonWheel({ activeSeasonFilters, onSeasonClick, onClearFilters
           <SunCenter cx={cx} cy={cy} color={centerColor} />
         </g>
       </svg>
-
-      {/* Season info card */}
-      {displaySeason && (
-        <div
-          className="px-3 py-2 rounded-xl"
-          style={{
-            maxWidth: size,
-            background: 'rgba(4,3,14,0.82)',
-            border: '1px solid rgba(139,92,246,0.2)',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{
-                backgroundColor: displaySeason.colorPalette.accentColor,
-                boxShadow: `0 0 6px ${displaySeason.colorPalette.accentColor}`,
-              }}
-            />
-            <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>
-              {displaySeason.name}
-            </span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
-              {displaySeason.nameEnglish}
-            </span>
-          </div>
-          <p className="text-[9px] mt-0.5 leading-snug line-clamp-2" style={{ color: 'rgba(255,255,255,0.22)' }}>
-            {displaySeason.description.split('.')[0]}.
-          </p>
-          {activeSeasonFilters.length > 0 && (
-            <button
-              onClick={onClearFilters}
-              className="mt-1.5 text-[9px] uppercase tracking-wider transition-colors"
-              style={{ color: 'rgba(212,164,84,0.55)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(212,164,84,0.9)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(212,164,84,0.55)')}
-            >
-              clear {activeSeasonFilters.length > 1 ? `${activeSeasonFilters.length} filters` : 'filter'} ×
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useApp } from '@/lib/store/AppContext';
-import { SeasonPicker } from '@/components/ui/SeasonPicker';
 import type { Story, Visibility } from '@/lib/types';
 
 interface StoryPopupProps {
@@ -22,27 +21,106 @@ const VISIBILITY_LABELS: Record<string, string> = {
   gendered: 'Gendered business',
 };
 
-function ImpactBar({ score }: { score: number }) {
+// Minimal Web Speech API types
+interface ISpeechRecognition extends EventTarget {
+  continuous: boolean; interimResults: boolean; lang: string;
+  onresult: ((e: ISpeechRecognitionEvent) => void) | null;
+  onerror: ((e: Event) => void) | null; onend: (() => void) | null;
+  start(): void; stop(): void;
+}
+interface ISpeechRecognitionResult { isFinal: boolean; [index: number]: { transcript: string }; }
+interface ISpeechRecognitionEvent extends Event { resultIndex: number; results: ISpeechRecognitionResult[]; }
+interface ISpeechRecognitionCtor { new(): ISpeechRecognition; }
+function getSR(): ISpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition ?? null;
+}
+
+const LANG_OPTIONS = [
+  { code: 'en-AU', label: 'EN·AU' },
+  { code: 'en-US', label: 'EN·US' },
+  { code: 'en-GB', label: 'EN·GB' },
+];
+
+const ERA_OPTIONS = [
+  { id: '',            label: 'Not sure',         year: undefined },
+  { id: 'immemorial',  label: "Country's making",  year: 1850      },
+  { id: 'elders',      label: "Elders' time",      year: 1925      },
+  { id: 'parents',     label: "Parents' time",     year: 1965      },
+  { id: 'living',      label: 'Our time',          year: 1995      },
+  { id: 'unknown',     label: 'Time unknown',      year: undefined },
+];
+
+function MicButton({ onTranscript }: { onTranscript: (t: string) => void }) {
+  const [listening, setListening] = useState(false);
+  const [lang, setLang] = useState('en-AU');
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const recRef = useRef<ISpeechRecognition | null>(null);
+  if (!getSR()) return null;
+  function toggle() {
+    if (listening) { recRef.current?.stop(); setListening(false); return; }
+    const SR = getSR(); if (!SR) return;
+    const rec = new SR();
+    rec.continuous = true; rec.interimResults = true; rec.lang = lang;
+    rec.onresult = (e: ISpeechRecognitionEvent) => {
+      let final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      }
+      if (final) onTranscript(final);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    rec.start(); recRef.current = rec; setListening(true);
+  }
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="text-xs tracking-wider" style={{ color: 'rgba(212,164,84,0.55)', textTransform: 'uppercase' }}>
-        Cultural weight
-      </span>
-      <div className="flex gap-1">
-        {Array.from({ length: 10 }, (_, i) => (
-          <div
-            key={i}
-            className="w-2 h-2 rounded-full"
-            style={{
-              backgroundColor:
-                i < score
-                  ? `rgba(212,175,100,${0.3 + (i / 10) * 0.7})`
-                  : 'rgba(88,28,135,0.3)',
-            }}
-          />
-        ))}
+    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1">
+      {/* Language selector */}
+      <div className="relative">
+        <button type="button" onClick={() => setShowLangPicker(v => !v)}
+          className="text-[9px] px-1.5 py-0.5 rounded-md leading-tight"
+          style={{ background: 'rgba(88,28,135,0.2)', border: '1px solid rgba(139,92,246,0.2)', color: 'rgba(139,92,246,0.6)' }}>
+          {LANG_OPTIONS.find(l => l.code === lang)?.label ?? lang}
+        </button>
+        {showLangPicker && (
+          <div className="absolute bottom-full right-0 mb-1 rounded-lg overflow-hidden z-20"
+            style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(139,92,246,0.3)', boxShadow: '0 4px 16px rgba(0,0,0,0.6)' }}>
+            {LANG_OPTIONS.map(opt => (
+              <button key={opt.code} type="button" onClick={() => { setLang(opt.code); setShowLangPicker(false); }}
+                className="w-full px-3 py-1.5 text-[10px] text-left whitespace-nowrap"
+                style={{ color: opt.code === lang ? 'rgba(212,164,84,0.9)' : 'rgba(255,255,255,0.55)', background: opt.code === lang ? 'rgba(88,28,135,0.4)' : 'transparent' }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <span className="text-xs" style={{ color: 'rgba(212,164,84,0.45)' }}>{score}/10</span>
+      {/* Mic button */}
+      <button type="button" onClick={toggle} title={listening ? 'Stop recording' : 'Speak your story'}
+        className="p-1.5 rounded-lg transition-all"
+        style={{
+          background: listening ? 'rgba(248,113,113,0.2)' : 'rgba(88,28,135,0.25)',
+          border: `1px solid ${listening ? 'rgba(248,113,113,0.5)' : 'rgba(139,92,246,0.3)'}`,
+          color: listening ? 'rgba(248,113,113,0.9)' : 'rgba(139,92,246,0.7)',
+          position: 'relative',
+        }}>
+        {listening ? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="4.5" y="1" width="5" height="7" rx="2.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M2 7a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="7" y1="12" x2="7" y2="13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        )}
+        {listening && (
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full animate-star-pulse"
+            style={{ background: 'rgba(248,113,113,0.9)' }} />
+        )}
+      </button>
     </div>
   );
 }
@@ -56,8 +134,8 @@ export function StoryPopup({
   onClose,
   onStoryUpdated,
 }: StoryPopupProps) {
-  const { dispatch } = useApp();
-  const [isEditing, setIsEditing] = useState(true);
+  const { state, dispatch } = useApp();
+  const [isEditing, setIsEditing] = useState(false);
 
   // Edit fields
   const [editTitle, setEditTitle] = useState(story.title);
@@ -65,6 +143,7 @@ export function StoryPopup({
   const [editSeasonalContext, setEditSeasonalContext] = useState(story.seasonalContext ?? '');
   const [editSeasonTag, setEditSeasonTag] = useState(story.seasonTag);
   const [editVisibility, setEditVisibility] = useState<Visibility>(story.visibility);
+  const [editEraId, setEditEraId] = useState(() => ERA_OPTIONS.find(e => e.year === story.year)?.id ?? '');
 
   const isPhoto = story.type === 'photo';
 
@@ -76,6 +155,7 @@ export function StoryPopup({
       seasonTag: editSeasonTag,
       seasonalContext: editSeasonalContext.trim() || undefined,
       visibility: editVisibility,
+      year: ERA_OPTIONS.find(e => e.id === editEraId)?.year,
     };
     dispatch({ type: 'UPDATE_STORY', payload: { personId, story: updated } });
     onStoryUpdated?.(updated);
@@ -88,6 +168,7 @@ export function StoryPopup({
     setEditSeasonalContext(story.seasonalContext ?? '');
     setEditSeasonTag(story.seasonTag);
     setEditVisibility(story.visibility);
+    setEditEraId(ERA_OPTIONS.find(e => e.year === story.year)?.id ?? '');
     setIsEditing(false);
   }
 
@@ -96,7 +177,7 @@ export function StoryPopup({
     border: '1px solid rgba(139,92,246,0.25)',
     borderRadius: 8,
     padding: '8px 12px',
-    color: 'rgba(255,255,255,0.82)',
+    color: 'rgba(255,255,255,0.90)',
     fontSize: 14,
     outline: 'none',
     width: '100%',
@@ -125,11 +206,11 @@ export function StoryPopup({
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2.5 mb-1.5">
-                <span className="text-xs uppercase tracking-wider" style={{ color: 'rgba(212,164,84,0.55)' }}>
+                <span className="text-xs uppercase tracking-wider" style={{ color: 'rgba(212,164,84,0.82)' }}>
                   {story.type}
                 </span>
                 <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
-                <span className="text-xs" style={{ color: 'rgba(212,164,84,0.45)' }}>{personName}</span>
+                <span className="text-xs" style={{ color: 'rgba(212,164,84,0.70)' }}>{personName}</span>
               </div>
               {isEditing ? (
                 <input
@@ -146,7 +227,7 @@ export function StoryPopup({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* Edit toggle */}
+              {/* Edit toggle — pen to enter, back-arrow to exit */}
               <button
                 onClick={() => isEditing ? handleCancel() : setIsEditing(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
@@ -154,14 +235,16 @@ export function StoryPopup({
                   background: isEditing ? 'rgba(88,28,135,0.5)' : 'rgba(88,28,135,0.25)',
                   border: `1px solid ${isEditing ? 'rgba(212,164,84,0.4)' : 'rgba(139,92,246,0.3)'}`,
                 }}
-                aria-label={isEditing ? 'Cancel edit' : 'Edit story'}
-                title={isEditing ? 'Cancel' : 'Edit story'}
+                aria-label={isEditing ? 'Back to view' : 'Edit story'}
+                title={isEditing ? 'Back to view' : 'Edit story'}
               >
                 {isEditing ? (
+                  // Back arrow
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 2l8 8M10 2l-8 8" stroke="rgba(212,164,84,0.8)" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M7 2L3 6l4 4" stroke="rgba(212,164,84,0.8)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : (
+                  // Pen icon
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M8 2l2 2-6 6H2V8L8 2z" stroke="rgba(139,92,246,0.8)" strokeWidth="1.2" strokeLinejoin="round" />
                   </svg>
@@ -178,17 +261,52 @@ export function StoryPopup({
             </div>
           </div>
 
-          {/* Impact score */}
-          {impactScore !== undefined && (
-            <div className="mb-5">
-              <ImpactBar score={impactScore} />
-            </div>
-          )}
-
           {/* Season tag / picker */}
           <div className="mb-5">
             {isEditing ? (
-              <SeasonPicker value={editSeasonTag} onChange={setEditSeasonTag} />
+              <div>
+                <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.82)' }}>
+                  Which season does this belong to?
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditSeasonTag('unsure')}
+                    className="px-3 py-1.5 rounded-lg text-xs transition-all"
+                    style={editSeasonTag === 'unsure' ? {
+                      background: 'rgba(88,28,135,0.55)',
+                      border: '1px solid rgba(212,164,84,0.35)',
+                      color: 'rgba(212,164,84,0.9)',
+                    } : {
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(139,92,246,0.15)',
+                      color: 'rgba(255,255,255,0.38)',
+                    }}
+                  >
+                    I&apos;m not sure yet
+                  </button>
+                  {(state.seasonalCalendar?.seasons ?? []).map((season) => (
+                    <button
+                      key={season.id}
+                      type="button"
+                      onClick={() => setEditSeasonTag(season.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                      style={editSeasonTag === season.id ? {
+                        background: 'rgba(88,28,135,0.55)',
+                        border: '1px solid rgba(212,164,84,0.35)',
+                        color: 'rgba(212,164,84,0.9)',
+                      } : {
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(139,92,246,0.15)',
+                        color: 'rgba(255,255,255,0.38)',
+                      }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: season.colorPalette.accentColor }} />
+                      {season.nameEnglish}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : (
               seasonName && (
                 <span
@@ -205,14 +323,17 @@ export function StoryPopup({
           {/* Content */}
           <div className="mb-5">
             {isEditing && !isPhoto ? (
-              <textarea
-                value={editContent}
-                onChange={(e) => { const v = e.target.value; setEditContent(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v); }}
-                onMouseDown={(e) => e.stopPropagation()}
-                rows={7}
-                autoCapitalize="sentences"
-                style={{ ...INPUT, resize: 'none', lineHeight: 1.65 }}
-              />
+              <div className="relative">
+                <textarea
+                  value={editContent}
+                  onChange={(e) => { const v = e.target.value; setEditContent(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v); }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  rows={7}
+                  autoCapitalize="sentences"
+                  style={{ ...INPUT, resize: 'none', lineHeight: 1.65, paddingBottom: 36 }}
+                />
+                <MicButton onTranscript={(t) => setEditContent(prev => prev ? prev + ' ' + t : t)} />
+              </div>
             ) : isPhoto ? (
               story.content.startsWith('data:') ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
@@ -221,7 +342,7 @@ export function StoryPopup({
                 <p className="text-base italic" style={{ color: 'rgba(255,255,255,0.25)' }}>Photo not available</p>
               )
             ) : (
-              <p className="text-base leading-relaxed whitespace-pre-wrap" style={{ color: 'rgba(255,255,255,0.78)' }}>
+              <p className="text-base leading-relaxed whitespace-pre-wrap" style={{ color: 'rgba(255,255,255,0.90)' }}>
                 {story.content}
               </p>
             )}
@@ -230,7 +351,7 @@ export function StoryPopup({
           {/* Seasonal context */}
           {isEditing ? (
             <div className="mb-5">
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.55)' }}>
+              <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.82)' }}>
                 What was happening on Country? (optional)
               </label>
               <input
@@ -247,10 +368,28 @@ export function StoryPopup({
             </blockquote>
           ) : null}
 
+          {/* When did this happen (edit mode) */}
+          {isEditing && (
+            <div className="mb-5">
+              <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.82)' }}>
+                When did this happen? <span style={{ color: 'rgba(255,255,255,0.2)' }}>(optional)</span>
+              </label>
+              <select
+                value={editEraId}
+                onChange={(e) => setEditEraId(e.target.value)}
+                style={{ ...INPUT }}
+              >
+                {ERA_OPTIONS.map((era) => (
+                  <option key={era.id} value={era.id}>{era.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Visibility (edit mode) */}
           {isEditing && (
             <div className="mb-5">
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.55)' }}>Who can see this?</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.82)' }}>Who can see this?</label>
               <select
                 value={editVisibility}
                 onChange={(e) => setEditVisibility(e.target.value as Visibility)}

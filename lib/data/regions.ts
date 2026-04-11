@@ -1,323 +1,234 @@
 import type { Region } from '../types';
 
-// Sources: AIATSIS Map of Indigenous Australia, AUSTLANG database, state language authority records.
-// Spellings follow AIATSIS preferred forms where known.
-// calendarId falls back to 'generic' where no detailed seasonal calendar has been recorded here yet.
-// kinshipTemplateType falls back to 'moiety_only' where the specific system is not yet modelled.
+// Sources: AIATSIS AUSTLANG database; First Peoples – State Relations (Victorian Government);
+// Registered Aboriginal Party determinations; community language centres.
+// Spellings follow contemporary community-preferred forms where known.
+// All entries are Victorian. calendarId uses 'generic' — a Victorian seasonal calendar
+// is not yet implemented; seasonal knowledge belongs to communities.
 
 export const regions: Region[] = [
-  // ── Western Australia ──────────────────────────────────────────────────────
-  {
-    id: 'noongar',
-    displayName: 'Noongar',
-    alternateNames: ['Nyungar', 'Nyoongar', 'Noongah', 'Whadjuk', 'Ballardong', 'Yued', 'Wadandi', 'Mineng', 'Wiilman', 'Pindjarup', 'Koreng', 'Amangu'],
-    stateTerritory: 'Western Australia',
-    countryDescription: 'South-west corner of Western Australia, from Geraldton to Esperance.',
-    description: 'Six seasons follow the land cycle from hot dry Birak through to wildflower Kambarang.',
-    calendarId: 'noongar',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'martu',
-    displayName: 'Martu',
-    alternateNames: ['Mardu', 'Kartujarra', 'Manyjilyjarra', 'Warnman', 'Putijarra'],
-    stateTerritory: 'Western Australia',
-    countryDescription: 'Western Desert, including the Gibson and Great Sandy Deserts.',
-    description: 'Desert peoples whose Country spans vast arid landscapes across the Western Desert.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'gendered_subsection',
-  },
-  {
-    id: 'yawuru',
-    displayName: 'Yawuru',
-    alternateNames: ['Jawuru'],
-    stateTerritory: 'Western Australia',
-    countryDescription: 'Broome and surrounding Kimberley coast.',
-    description: 'Saltwater and freshwater Country around Roebuck Bay and the Kimberley coast.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'bardi',
-    displayName: 'Bardi',
-    alternateNames: ['Bard', 'Jawi'],
-    stateTerritory: 'Western Australia',
-    countryDescription: 'Dampier Peninsula and Sunday Island, north Kimberley.',
-    description: 'Saltwater people of the Dampier Peninsula, with strong sea-country connections.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'nyikina',
-    displayName: 'Nyikina',
-    alternateNames: ['Nyigina', 'Nykina'],
-    stateTerritory: 'Western Australia',
-    countryDescription: 'Fitzroy River valley, south Kimberley.',
-    description: 'River people of the Martuwarra (Fitzroy River) in the south Kimberley.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'walmajarri',
-    displayName: 'Walmajarri',
-    alternateNames: ['Wolmeri'],
-    stateTerritory: 'Western Australia',
-    countryDescription: 'Great Sandy Desert and Fitzroy River region, Kimberley.',
-    description: 'Desert and river people spanning the Great Sandy Desert into the Kimberley.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'gendered_subsection',
-  },
 
-  // ── Northern Territory ─────────────────────────────────────────────────────
-  {
-    id: 'yolngu',
-    displayName: 'Yolngu',
-    alternateNames: ['Yolŋu', 'Yolngo', 'Dhuwaya', 'Dhuwal', 'Djambarrpuyngu'],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'North-east Arnhem Land.',
-    description: 'Monsoon seasons follow the buildup through wet and dry. Moiety system: Dhuwa and Yirritja.',
-    calendarId: 'yolngu',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'warlpiri',
-    displayName: 'Warlpiri',
-    alternateNames: ['Warlbiri', 'Walpiri', 'Walbiri'],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'Tanami Desert, north-west of Alice Springs.',
-    description: 'Eight subsection skin name system. Communities at Yuendumu, Lajamanu, Nyirrpi and Willowra.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'gendered_subsection',
-  },
-  {
-    id: 'arrernte',
-    displayName: 'Arrernte',
-    alternateNames: ['Aranda', 'Arrarnta', 'Anmatyerr', 'Alyawarr', 'Eastern Arrernte', 'Western Arrernte'],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'Alice Springs region and MacDonnell Ranges.',
-    description: 'Alice Springs (Mparntwe) is Arrernte Country. Rich Dreaming tracks connect the landscape.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'eight_subsection',
-  },
-  {
-    id: 'larrakia',
-    displayName: 'Larrakia',
-    alternateNames: ['Larakia', 'Laragia'],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'Darwin and Cox Peninsula.',
-    description: 'Traditional custodians of the Darwin region and surrounding coastal Country.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'tiwi',
-    displayName: 'Tiwi',
-    alternateNames: [],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'Bathurst and Melville Islands, north of Darwin.',
-    description: 'Island people with a distinct language and culture, including the Pukumani ceremony tradition.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'gurindji',
-    displayName: 'Gurindji',
-    alternateNames: ['Gurinji'],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'Victoria River District, Wave Hill region.',
-    description: 'Known for the 1966 Wave Hill Walk-Off, a landmark moment in land rights history.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'eight_subsection',
-  },
-  {
-    id: 'kaytetye',
-    displayName: 'Kaytetye',
-    alternateNames: ['Kaytej'],
-    stateTerritory: 'Northern Territory',
-    countryDescription: 'Barrow Creek and Davenport Ranges, central NT.',
-    description: 'Country centred around Barrow Creek and the Davenport Ranges.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'eight_subsection',
-  },
+  // ── Kulin Nation — central and southern Victoria ──────────────────────────
+  // The five Kulin language groups share the Bunjil / Waa moiety system
+  // and a long tradition of alliance, trade and ceremony.
 
-  // ── South Australia ────────────────────────────────────────────────────────
-  {
-    id: 'kaurna',
-    displayName: 'Kaurna',
-    alternateNames: ['Gaurna', 'Kauwna'],
-    stateTerritory: 'South Australia',
-    countryDescription: 'Adelaide Plains and Mount Lofty Ranges.',
-    description: 'Traditional custodians of the Adelaide Plains. Language revival underway.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'pitjantjatjara',
-    displayName: 'Pitjantjatjara',
-    alternateNames: ['Anangu', 'Pitjantjara', 'Yankunytjatjara', 'Ngaanyatjarra', 'APY'],
-    stateTerritory: 'South Australia',
-    countryDescription: 'Anangu Pitjantjatjara Yankunytjatjara (APY) Lands, central Australia.',
-    description: 'Custodians of Uluru and the APY Lands. One of Australia\'s most spoken Indigenous languages.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'eight_subsection',
-  },
-  {
-    id: 'ngarrindjeri',
-    displayName: 'Ngarrindjeri',
-    alternateNames: ['Narrinyeri'],
-    stateTerritory: 'South Australia',
-    countryDescription: 'Lower Murray River, Coorong and lakes region.',
-    description: 'River, lake and coastal people of the Murray mouth and Coorong.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-
-  // ── Queensland ─────────────────────────────────────────────────────────────
-  {
-    id: 'torres_strait',
-    displayName: 'Torres Strait Islander',
-    alternateNames: ['Meriam', 'Kala Lagaw Ya', 'Zenadth Kes', 'Mabuiag', 'Saibai', 'Moa', 'Badu'],
-    stateTerritory: 'Queensland',
-    countryDescription: 'Torres Strait Islands between Cape York and Papua New Guinea.',
-    description: 'Island nations with distinct Melanesian and Aboriginal heritage. Seasons follow Kuki (monsoon) and Sager (trade wind) cycles.',
-    calendarId: 'torres_strait',
-    kinshipTemplateType: 'torres_strait_clan',
-  },
-  {
-    id: 'gamilaraay',
-    displayName: 'Gamilaraay',
-    alternateNames: ['Kamilaroi', 'Gomeroi', 'Gamileroi', 'Gamilaroi'],
-    stateTerritory: 'Queensland / New South Wales',
-    countryDescription: 'North-west NSW into southern Queensland.',
-    description: 'One of the largest language groups in Australia, spanning from Tamworth to Goondiwindi.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'four_section',
-  },
-  {
-    id: 'wiradjuri',
-    displayName: 'Wiradjuri',
-    alternateNames: ['Wiradyuri', 'Wiradjeri'],
-    stateTerritory: 'New South Wales',
-    countryDescription: 'Central NSW — the largest Country in NSW.',
-    description: 'The largest language group in NSW. Three rivers — Wambool, Kalari and Murrumbidgee — define Wiradjuri Country.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'bundjalung',
-    displayName: 'Bundjalung',
-    alternateNames: ['Banjalang', 'Badjalang', 'Yugambeh'],
-    stateTerritory: 'New South Wales / Queensland',
-    countryDescription: 'Northern NSW coast and hinterland into south-east Queensland.',
-    description: 'Coastal and hinterland peoples of the Northern Rivers region.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'yuin',
-    displayName: 'Yuin',
-    alternateNames: ['Dhurga', 'Thurga'],
-    stateTerritory: 'New South Wales',
-    countryDescription: 'South coast of NSW from Wollongong to the Victorian border.',
-    description: 'Coastal people of the NSW south coast, with deep connections to whale Dreaming.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-
-  // ── New South Wales ────────────────────────────────────────────────────────
-  {
-    id: 'dharawal',
-    displayName: "D'harawal",
-    alternateNames: ['Dharawal', 'Tharawal', 'Dhurga'],
-    stateTerritory: 'New South Wales',
-    countryDescription: 'Sydney basin south — from Botany Bay to Nowra.',
-    description: 'Six seasons marked by flowering, fruiting and animal behaviour patterns.',
-    calendarId: 'dharawal',
-    kinshipTemplateType: 'four_section',
-  },
-  {
-    id: 'eora',
-    displayName: 'Eora / Gadigal',
-    alternateNames: ['Gadigal', 'Cadigal', 'Biripi', 'Cammeraygal', 'Wallumedegal', 'Darug', 'Dharug'],
-    stateTerritory: 'New South Wales',
-    countryDescription: 'Sydney Harbour and surrounding lands.',
-    description: 'The Eora nation encompasses the coastal clans of Sydney. Gadigal are custodians of the south shore of Sydney Harbour.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-  {
-    id: 'awabakal',
-    displayName: 'Awabakal',
-    alternateNames: ['Awabakul'],
-    stateTerritory: 'New South Wales',
-    countryDescription: 'Newcastle, Lake Macquarie and Hunter Valley.',
-    description: 'Traditional custodians of the Newcastle and Hunter region.',
-    calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
-  },
-
-  // ── Victoria ───────────────────────────────────────────────────────────────
   {
     id: 'wurundjeri',
-    displayName: 'Wurundjeri',
-    alternateNames: ['Woiwurrung', 'Wurundjeri Woi Wurrung'],
+    displayName: 'Wurundjeri Woi Wurrung',
+    alternateNames: ['Woiwurrung', 'Wurundjeri', 'Birrarung people'],
     stateTerritory: 'Victoria',
-    countryDescription: 'Melbourne and the Yarra River valley.',
-    description: 'Traditional custodians of the Yarra River (Birrarung) and Melbourne area.',
+    countryDescription: 'Melbourne (Naarm), Birrarung (Yarra River), and the surrounding ranges.',
+    description:
+      'Traditional custodians of Melbourne and the Birrarung (Yarra River). ' +
+      'Bunjil/Waa moiety system. The Birrarung is the spiritual and cultural heartline of Wurundjeri Country.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'kulin_nation',
   },
   {
     id: 'boonwurrung',
     displayName: 'Boon Wurrung',
-    alternateNames: ['Bunurong', 'Boonwurrung'],
+    alternateNames: ['Bunurong', 'Boonwurrung', 'Bunerong', 'Boon wurrung'],
     stateTerritory: 'Victoria',
-    countryDescription: 'Port Phillip Bay eastern shore and Western Port Bay.',
-    description: 'Coastal saltwater people of Port Phillip Bay and the Mornington Peninsula.',
+    countryDescription: 'Port Phillip Bay eastern shore, Mornington Peninsula, and Western Port (Boon Wurrung Sea Country).',
+    description:
+      'Saltwater Kulin people. Custodians from the Werribee River south to Wilsons Promontory (Wamoon) and the Bass Strait islands. ' +
+      'Deep connections to whale, seal, and bay Country. Bunjil/Waa moiety system.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'kulin_nation',
   },
   {
-    id: 'gunditjmara',
-    displayName: 'Gunditjmara',
-    alternateNames: ['Gunditjamara', 'Dhauwurd Wurrung'],
+    id: 'wadawurrung',
+    displayName: 'Wadawurrung',
+    alternateNames: ['Wada Wurrung', 'Wathauroong'],
     stateTerritory: 'Victoria',
-    countryDescription: 'South-west Victoria around Lake Condah and Portland.',
-    description: 'Builders of the Budj Bim eel aquaculture system, a UNESCO World Heritage site.',
+    countryDescription: 'Geelong, Ballarat, Surf Coast, and the Otway Ranges.',
+    description:
+      'Kulin people of the western Port Phillip coast and Otways. Country spans from the Werribee River to Cape Otway. ' +
+      'Custodians of Djilang (Geelong) and the Moorabool River. Bunjil/Waa moiety system.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'kulin_nation',
   },
   {
     id: 'dja_dja_wurrung',
     displayName: 'Dja Dja Wurrung',
     alternateNames: ['Jaara', 'Djadjawurrung'],
     stateTerritory: 'Victoria',
-    countryDescription: 'Central Victoria around Bendigo and Castlemaine.',
-    description: 'Country of the Loddon River region in central Victoria.',
+    countryDescription: 'Central Victoria — Bendigo, Castlemaine, and the Loddon River valley.',
+    description:
+      'Kulin people of the Loddon and Avoca River country. ' +
+      'The first Victorian Nation to have a Registered Aboriginal Party under the Aboriginal Heritage Act. Bunjil/Waa moiety system.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'kulin_nation',
   },
-
-  // ── Tasmania ───────────────────────────────────────────────────────────────
   {
-    id: 'palawa',
-    displayName: 'Palawa',
-    alternateNames: ['Pakana', 'Tasmanian Aboriginal', 'Paredarerme', 'Pyemmairrener'],
-    stateTerritory: 'Tasmania',
-    countryDescription: 'lutruwita (Tasmania) and surrounding islands.',
-    description: 'The first peoples of lutruwita. Language (Palawa kani) is in active revival.',
+    id: 'taungurung',
+    displayName: 'Taungurung',
+    alternateNames: ['Daung wurrung', 'Taungerong', 'Daungwurrung'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Central Victoria — upper Yarra, Goulburn River, and ranges north to Mansfield and Eildon.',
+    description:
+      'Mountain Kulin people of the Great Dividing Range and upper Goulburn River. ' +
+      'Country includes the Eildon and Mansfield regions. Custodians of significant alpine and river Country. Bunjil/Waa moiety system.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'kulin_nation',
+  },
+
+  // ── Southwest Victoria ────────────────────────────────────────────────────
+
+  {
+    id: 'gunditjmara',
+    displayName: 'Gunditjmara',
+    alternateNames: ['Gunditjamara', 'Kirrae Wurrong', 'Peek Wurrong'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'South-west Victoria — Tae Rak (Lake Condah), Portland (Tyrendarra), and Budj Bim (Mount Eccles).',
+    description:
+      'Builders of the Budj Bim eel aquaculture system — a UNESCO World Heritage site ' +
+      'and one of the world\'s oldest engineering works, more than 6,600 years old.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+  {
+    id: 'djab_wurrung',
+    displayName: 'Djab wurrung',
+    alternateNames: ['Djabwurrung', 'Eastern Maar'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Gariwerd (the Grampians), the Pyrenees, and upper Wimmera River.',
+    description:
+      'Custodians of Gariwerd (the Grampians). Rich rock art tradition at Bunjil\'s Shelter and across the ranges. ' +
+      'Country is home to significant Dreaming sites connected to Bunjil, creator spirit.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+  {
+    id: 'jardwadjali',
+    displayName: 'Jardwadjali',
+    alternateNames: ['Jaadwa', 'Jaradwadjali'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Western Wimmera and the western Grampians foothills.',
+    description:
+      'Western neighbours of the Djab wurrung. Country spans the western Grampians foothills ' +
+      'and the Wimmera River. Shared ceremonial connections across the wider Grampians region.',
     calendarId: 'generic',
     kinshipTemplateType: 'moiety_only',
   },
 
-  // ── Fallback ───────────────────────────────────────────────────────────────
+  // ── Northwest Victoria ────────────────────────────────────────────────────
+
+  {
+    id: 'wergaia',
+    displayName: 'Wergaia',
+    alternateNames: ['Wergaio', 'Wotjobaluk', 'Wudjaubaluk', 'Jupagalk'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Northwest Victoria — Mallee, Horsham, and the Wimmera-Mallee wetlands.',
+    description:
+      'People of the Mallee and Wimmera. Country includes Lake Hindmarsh, Lake Albacutya, ' +
+      'and the lower Wimmera River. The Wergaia language encompasses several related clan groups.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+  {
+    id: 'latje_latje',
+    displayName: 'Latje Latje',
+    alternateNames: ['Latji Latji', 'Tati Tati'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Upper Murray River around Swan Hill and Mildura.',
+    description:
+      'Murray River peoples of the upper reaches. Skilled in harvesting the river\'s seasonal abundance — ' +
+      'fish, waterbirds, and floodplain plants. Connected to the broader Murray River trading networks.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+  {
+    id: 'wamba_wamba',
+    displayName: 'Wamba Wamba',
+    alternateNames: ['Wemba Wemba', 'Wembawemba'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Murray Valley around Kerang and the Loddon-Murray junction.',
+    description:
+      'People of the Murray-Loddon junction. Rich connections to wetland and waterbird Country. ' +
+      'The Kerang lakes and reed beds were major gathering places for ceremony and food.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+
+  // ── Murray River ─────────────────────────────────────────────────────────
+
+  {
+    id: 'yorta_yorta',
+    displayName: 'Yorta Yorta',
+    alternateNames: ['Joti Joti', 'Yota Yota'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Dungala (Murray River) and Barmah-Millewa Forest around Echuca.',
+    description:
+      'River people of the Dungala (Murray) and the Barmah-Millewa Forest — the world\'s largest river red gum forest. ' +
+      'Led a landmark High Court Native Title case in 2002.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+
+  // ── Gippsland ────────────────────────────────────────────────────────────
+
+  {
+    id: 'gunaikurnai',
+    displayName: 'Gunaikurnai',
+    alternateNames: ['Gunai Kurnai', 'Gunnai', 'Kurnai'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Gippsland — east Victoria from Wonthaggi to the NSW border.',
+    description:
+      'Five clan groups sharing connected Country across Gippsland: Brataualung, Brayakaulung, Brabralung, ' +
+      'Krauatungalung, and Tatungalung. Custodians of the Latrobe Valley, Mitchell River, and the Gippsland Lakes.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+
+  // ── High Country / Alps ───────────────────────────────────────────────────
+
+  {
+    id: 'monero_ngarigo',
+    displayName: 'Monero Ngarigo',
+    alternateNames: ['Ngarigo', 'Ngarego', 'Ngariego'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Alpine Victorian high plains and upper Snowy River — shared with NSW.',
+    description:
+      'Mountain peoples of the Victorian and NSW alps. Seasonal Country reaching to the coast and plains for ceremony and trade. ' +
+      'The bogong moth harvest brought nations together on the high plains each summer.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+  {
+    id: 'dhudhuroa',
+    displayName: 'Dhudhuroa',
+    alternateNames: ['Dudhuroa', 'Dhudhoroa'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Northeast Victoria — upper Murray River, Mitta Mitta and Kiewa Valleys.',
+    description:
+      'Alpine and valley people of northeast Victoria. Country follows the rivers and ranges ' +
+      'from the upper Murray into the high country, connected to seasonal rounds across the mountains.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+  {
+    id: 'jaitmathang',
+    displayName: 'Jaitmathang',
+    alternateNames: ['Jaimathang', 'Jeithi'],
+    stateTerritory: 'Victoria',
+    countryDescription: 'Bogong High Plains — northeast Victoria around Mount Bogong and the Dargo High Plains.',
+    description:
+      'High plains people who hosted the annual bogong moth harvest on the Bogong High Plains. ' +
+      'This was one of the largest inter-nation gatherings in southeast Australia — a time of feasting, ceremony, and trade.',
+    calendarId: 'generic',
+    kinshipTemplateType: 'moiety_only',
+  },
+
+  // ── Fallback ──────────────────────────────────────────────────────────────
   {
     id: 'not_listed',
     displayName: "My group isn't listed",
-    alternateNames: ['not sure', 'unsure', 'unknown', "don't know"],
+    alternateNames: ['not sure', 'unsure', 'unknown'],
     stateTerritory: '',
     countryDescription: '',
-    description: "That's okay. Start with a general framework. You can update your language group and Country at any time.",
+    description:
+      "That's okay. You can start with a general framework and update your Country at any time.",
     calendarId: 'generic',
     kinshipTemplateType: 'moiety_only',
   },

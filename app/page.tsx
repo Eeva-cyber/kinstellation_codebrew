@@ -1,7 +1,7 @@
 'use client';
 
-import { LandingPage } from '@/components/landing/LandingPage';
+import { SplashScreen } from '@/components/splash/SplashScreen';
 
 export default function Home() {
-  return <LandingPage />;
+  return <SplashScreen />;
 }

@@ -8,7 +8,128 @@ import type {
 } from '@/lib/types';
 import { SeasonPicker } from '@/components/ui/SeasonPicker';
 import { WordTooltip } from '@/components/ui/WordTooltip';
-import { regions } from '@/lib/data/regions';
+
+// ── Web Speech API types ─────────────────────────────────────────────────────
+interface ISpeechRecognition extends EventTarget {
+  continuous: boolean; interimResults: boolean; lang: string;
+  onresult: ((e: ISpeechRecognitionEvent) => void) | null;
+  onerror: ((e: Event) => void) | null;
+  onend: (() => void) | null;
+  start(): void; stop(): void;
+}
+interface ISpeechRecognitionResult { isFinal: boolean; [index: number]: { transcript: string }; }
+interface ISpeechRecognitionEvent extends Event { resultIndex: number; results: ISpeechRecognitionResult[]; }
+interface ISpeechRecognitionCtor { new(): ISpeechRecognition; }
+
+function getSpeechRecognition(): ISpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition ?? null;
+}
+
+const LANG_OPTIONS = [
+  { code: 'en-AU', label: 'EN·AU' },
+  { code: 'en-US', label: 'EN·US' },
+  { code: 'en-GB', label: 'EN·GB' },
+];
+
+function MicButton({ onTranscript }: { onTranscript: (text: string) => void }) {
+  const [listening, setListening] = useState(false);
+  const [lang, setLang] = useState('en-AU');
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
+
+  if (!getSpeechRecognition()) return null;
+
+  function toggle() {
+    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
+    const SR = getSpeechRecognition(); if (!SR) return;
+    const rec = new SR();
+    rec.continuous = true; rec.interimResults = true; rec.lang = lang;
+    rec.onresult = (e: ISpeechRecognitionEvent) => {
+      let final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      }
+      if (final) onTranscript(final);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    rec.start(); recognitionRef.current = rec; setListening(true);
+  }
+
+  return (
+    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1">
+      {/* Language selector */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowLangPicker(v => !v)}
+          className="text-[9px] px-1.5 py-0.5 rounded-md leading-tight"
+          style={{
+            background: 'rgba(88,28,135,0.2)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            color: 'rgba(139,92,246,0.6)',
+          }}
+        >
+          {LANG_OPTIONS.find(l => l.code === lang)?.label ?? lang}
+        </button>
+        {showLangPicker && (
+          <div
+            className="absolute bottom-full right-0 mb-1 rounded-lg overflow-hidden z-20"
+            style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(139,92,246,0.3)', boxShadow: '0 4px 16px rgba(0,0,0,0.6)' }}
+          >
+            {LANG_OPTIONS.map(opt => (
+              <button
+                key={opt.code}
+                type="button"
+                onClick={() => { setLang(opt.code); setShowLangPicker(false); }}
+                className="w-full px-3 py-1.5 text-[10px] text-left whitespace-nowrap"
+                style={{
+                  color: opt.code === lang ? 'rgba(212,164,84,0.9)' : 'rgba(255,255,255,0.55)',
+                  background: opt.code === lang ? 'rgba(88,28,135,0.4)' : 'transparent',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Mic button */}
+      <button
+        type="button"
+        onClick={toggle}
+        title={listening ? 'Stop recording' : 'Speak your story'}
+        className="p-1.5 rounded-lg transition-all"
+        style={{
+          background: listening ? 'rgba(248,113,113,0.2)' : 'rgba(88,28,135,0.25)',
+          border: `1px solid ${listening ? 'rgba(248,113,113,0.5)' : 'rgba(139,92,246,0.3)'}`,
+          color: listening ? 'rgba(248,113,113,0.9)' : 'rgba(139,92,246,0.7)',
+          position: 'relative',
+        }}
+      >
+        {listening ? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="4.5" y="1" width="5" height="7" rx="2.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M2 7a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="7" y1="12" x2="7" y2="13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        )}
+        {listening && (
+          <span
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full animate-star-pulse"
+            style={{ background: 'rgba(248,113,113,0.9)' }}
+          />
+        )}
+      </button>
+    </div>
+  );
+}
 
 interface PersonPanelProps {
   person: Person;
@@ -20,11 +141,21 @@ interface PersonPanelProps {
   onMediaEntryClick?: (entry: MediaEntry) => void;
 }
 
-type Tab = 'profile' | 'connections' | 'media';
+type Tab = 'profile' | 'stories' | 'connections' | 'media';
 type MediaSection = 'photos' | 'articles' | 'videos';
 
 // ── localStorage size warning ────────────────────────────────────────────────
 const PHOTO_WARN_BYTES = 3 * 1024 * 1024; // 3 MB
+
+// Generation/era options — mirrors TimelinePanel ERA_GROUPS
+const ERA_OPTIONS = [
+  { id: '',           label: 'Not sure',         year: undefined },
+  { id: 'immemorial', label: "Country's making",  year: 1850      },
+  { id: 'elders',     label: "Elders' time",      year: 1925      },
+  { id: 'parents',    label: "Parents' time",     year: 1965      },
+  { id: 'living',     label: 'Our time',          year: 1995      },
+  { id: 'unknown',    label: 'Time unknown',      year: undefined },
+];
 
 function getPhotoStorageUsed(person: Person): number {
   return (person.mediaEntries ?? [])
@@ -54,7 +185,7 @@ function DateSeasonInput({
               className="px-3 py-1 rounded text-xs transition-all"
               style={{
                 background: active ? 'rgba(212,164,84,0.2)' : 'transparent',
-                color: active ? 'rgba(212,164,84,0.9)' : 'rgba(255,255,255,0.3)',
+                color: active ? 'rgba(212,164,84,0.9)' : 'rgba(255,255,255,0.52)',
                 border: active ? '1px solid rgba(212,164,84,0.3)' : '1px solid transparent',
               }}>
               {mode === 'indigenous' ? 'Seasonal' : 'Western'}
@@ -91,7 +222,9 @@ export function PersonPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>(
-    focusSection === 'connections' ? 'connections' : 'profile',
+    focusSection === 'connections' ? 'connections'
+    : focusSection === 'stories' ? 'stories'
+    : 'profile',
   );
 
   // ── Profile state ──────────────────────────────────────────────────────────
@@ -99,18 +232,21 @@ export function PersonPanel({
   const [indigenousName, setIndigenousName] = useState(person.indigenousName ?? '');
   const [skinName, setSkinName]             = useState(person.skinName ?? '');
   const [moiety, setMoiety]                 = useState(person.moiety ?? '');
-  const [mob, setMob]                       = useState(person.mob ?? '');
+  const [clan, setClan]                     = useState(person.clan ?? '');
+  const [community, setCommunity]           = useState(person.community ?? '');
   const [countryLanguageGroup, setCountryLanguageGroup] = useState(person.countryLanguageGroup ?? '');
   const [isDeceased, setIsDeceased]         = useState(person.isDeceased);
   const [visibility, setVisibility]         = useState<Visibility>(person.visibility);
   const [confirmDelete, setConfirmDelete]   = useState(false);
+  const [savedProfile, setSavedProfile]     = useState(false);
 
   // Quick story
-  const [showQuickStory, setShowQuickStory]     = useState(false);
-  const [quickStoryTitle, setQuickStoryTitle]   = useState('');
-  const [quickStoryContent, setQuickStoryContent] = useState('');
-  const [quickStoryType]                        = useState<StoryType>('text');
-  const [quickStorySeason, setQuickStorySeason] = useState('unsure');
+  const [showQuickStory, setShowQuickStory]         = useState(false);
+  const [quickStoryTitle, setQuickStoryTitle]       = useState('');
+  const [quickStoryContent, setQuickStoryContent]   = useState('');
+  const [quickStoryType]                            = useState<StoryType>('text');
+  const [quickStorySeason, setQuickStorySeason]     = useState('unsure');
+  const [quickStoryEraId, setQuickStoryEraId]       = useState('');
 
   // ── Media state ────────────────────────────────────────────────────────────
   const [openMediaSections, setOpenMediaSections] = useState<Set<MediaSection>>(new Set(['photos']));
@@ -180,16 +316,34 @@ export function PersonPanel({
         indigenousName: indigenousName.trim() || undefined,
         skinName: skinName.trim() || undefined,
         moiety: moiety || undefined,
-        mob: mob.trim() || undefined,
+        clan: clan.trim() || undefined,
+        community: community.trim() || undefined,
         countryLanguageGroup: countryLanguageGroup.trim() || undefined,
         isDeceased, visibility,
         lastUpdated: new Date().toISOString(),
       },
     });
+    // Update localStorage profile for self-person
+    if (isSelf) {
+      try {
+        const existing = JSON.parse(localStorage.getItem('kinstellation_profile') ?? '{}');
+        localStorage.setItem('kinstellation_profile', JSON.stringify({
+          ...existing,
+          name: displayName.trim(),
+          clan: clan.trim() || null,
+          community: community.trim() || null,
+          moiety: (moiety && moiety !== 'not_sure') ? moiety : null,
+          language: countryLanguageGroup.trim() || null,
+        }));
+      } catch { /* ignore */ }
+    }
+    setSavedProfile(true);
+    setTimeout(() => setSavedProfile(false), 2000);
   }
 
   function handleQuickStorySave() {
     if (!quickStoryTitle.trim() || !quickStoryContent.trim()) return;
+    const eraYear = ERA_OPTIONS.find((e) => e.id === quickStoryEraId)?.year;
     const story: Story = {
       id: crypto.randomUUID(),
       title: quickStoryTitle.trim(),
@@ -198,11 +352,12 @@ export function PersonPanel({
       recordedBy: '',
       recordedDate: new Date().toISOString(),
       seasonTag: quickStorySeason,
+      year: eraYear,
       visibility: 'family',
       linkedPersonIds: [person.id],
     };
     dispatch({ type: 'ADD_STORY', payload: { personId: person.id, story } });
-    setQuickStoryTitle(''); setQuickStoryContent(''); setQuickStorySeason('unsure');
+    setQuickStoryTitle(''); setQuickStoryContent(''); setQuickStorySeason('unsure'); setQuickStoryEraId('');
     setShowQuickStory(false);
   }
 
@@ -266,7 +421,7 @@ export function PersonPanel({
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="absolute top-0 right-0 h-full z-30 animate-slide-right select-auto" style={{ width: '28rem' }}>
+    <div className="absolute top-0 right-0 h-full z-30 animate-slide-right select-auto" style={{ width: '28rem' }} onMouseDown={(e) => e.stopPropagation()}>
       <div ref={scrollRef} className="h-full flex flex-col backdrop-blur-xl panel-scroll"
         style={{ background: 'rgba(8,4,22,0.97)', borderLeft: '1px solid rgba(88,28,135,0.4)' }}>
 
@@ -298,15 +453,15 @@ export function PersonPanel({
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl mb-0"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(88,28,135,0.25)' }}>
-            {(['profile', 'connections', 'media'] as Tab[]).map((tab) => (
+            {(['profile', 'stories', 'connections', 'media'] as Tab[]).map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="flex-1 py-2 rounded-lg text-xs font-medium transition-all capitalize"
                 style={{
                   background: activeTab === tab ? 'rgba(88,28,135,0.5)' : 'transparent',
-                  color: activeTab === tab ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.35)',
+                  color: activeTab === tab ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.60)',
                   border: activeTab === tab ? '1px solid rgba(212,164,84,0.25)' : '1px solid transparent',
                 }}>
-                {tab}
+                {tab === 'stories' ? `stories${person.stories.length > 0 ? ` (${person.stories.length})` : ''}` : tab}
               </button>
             ))}
           </div>
@@ -325,7 +480,7 @@ export function PersonPanel({
                   <Field label="Indigenous name" value={indigenousName} onChange={setIndigenousName} placeholder="Name in language" />
                   {sectionNames ? (
                     <div>
-                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>
                         <WordTooltip term="Skin name">Skin name</WordTooltip>
                       </label>
                       <select value={skinName} onChange={(e) => setSkinName(e.target.value)}
@@ -340,7 +495,7 @@ export function PersonPanel({
                   )}
                   {moietyNames && (
                     <div>
-                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>
                         <WordTooltip term="Moiety">Moiety</WordTooltip>
                       </label>
                       <div className="flex gap-2">
@@ -359,18 +514,23 @@ export function PersonPanel({
                       </div>
                     </div>
                   )}
-                  <LanguageGroupCombobox value={mob} onChange={setMob} />
-                  <Field label="Country / Language group" value={countryLanguageGroup}
-                    onChange={setCountryLanguageGroup} placeholder="e.g. Noongar Country, Arnhem Land" />
-                  <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  <Field label="Clan" value={clan} onChange={(v) => setClan(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v)}
+                    placeholder="e.g. Brataualung, Yalukit-willam" />
+                  <Field label="Community" value={community} onChange={(v) => setCommunity(v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v)}
+                    placeholder="e.g. Koorie, Framlingham" />
+                  <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'rgba(255,255,255,0.65)' }}>
                     <input type="checkbox" checked={isDeceased} onChange={(e) => setIsDeceased(e.target.checked)}
                       className="rounded border-white/10" />
                     This person is deceased
                   </label>
                   <button onClick={handleSave} disabled={!displayName.trim()}
                     className="w-full py-2 rounded-lg text-sm transition-all disabled:opacity-30"
-                    style={{ background: 'rgba(88,28,135,0.6)', border: '1px solid rgba(212,164,84,0.35)', color: 'rgba(212,164,84,0.9)' }}>
-                    Save
+                    style={{
+                      background: savedProfile ? 'rgba(34,197,94,0.2)' : 'rgba(88,28,135,0.6)',
+                      border: `1px solid ${savedProfile ? 'rgba(34,197,94,0.5)' : 'rgba(212,164,84,0.35)'}`,
+                      color: savedProfile ? 'rgba(134,239,172,0.9)' : 'rgba(212,164,84,0.9)',
+                    }}>
+                    {savedProfile ? 'Saved ✓' : 'Save'}
                   </button>
                 </div>
               </MediaSubSection>
@@ -400,6 +560,144 @@ export function PersonPanel({
             </div>
           )}
 
+          {/* ════ STORIES TAB ════ */}
+          {activeTab === 'stories' && (
+            <div className="space-y-4" data-section="stories">
+              {person.stories.length === 0 && !showQuickStory && (
+                <p className="text-xs italic pt-2" style={{ color: 'rgba(255,255,255,0.50)' }}>
+                  No stories yet. This star is waiting to be illuminated.
+                </p>
+              )}
+
+              {/* Story list */}
+              {person.stories.map((story) => (
+                <div key={story.id} className="px-4 py-3 rounded-xl"
+                  style={{ background: 'rgba(88,28,135,0.08)', border: '1px solid rgba(88,28,135,0.25)' }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.90)' }}>{story.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded capitalize shrink-0 mt-0.5"
+                      style={{ background: 'rgba(139,92,246,0.15)', color: 'rgba(139,92,246,0.7)' }}>
+                      {story.type}
+                    </span>
+                  </div>
+                  {story.content && story.type === 'text' && (
+                    <p className="text-xs mt-1.5 leading-relaxed line-clamp-3"
+                      style={{ color: 'rgba(255,255,255,0.65)' }}>
+                      {story.content}
+                    </p>
+                  )}
+                  {story.seasonTag && story.seasonTag !== 'unsure' && (
+                    <p className="text-[10px] mt-1.5" style={{ color: 'rgba(212,164,84,0.75)' }}>
+                      {state.seasonalCalendar
+                        ? (state.seasonalCalendar.seasons.find(s => s.id === story.seasonTag)?.name ?? story.seasonTag)
+                        : story.seasonTag}
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              {/* Quick story inline form */}
+              {showQuickStory ? (
+                <div className="p-4 rounded-xl space-y-3"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(88,28,135,0.25)' }}>
+                  <Field label="Title" value={quickStoryTitle} onChange={setQuickStoryTitle} placeholder="Story title" />
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>Story</label>
+                    <div className="relative">
+                      <textarea value={quickStoryContent} onChange={(e) => setQuickStoryContent(e.target.value)}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        placeholder="Tell the story..." rows={5}
+                        className="w-full rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', paddingBottom: '2.5rem' }} />
+                      <MicButton onTranscript={(t) => setQuickStoryContent(prev => prev ? prev + ' ' + t : t)} />
+                    </div>
+                  </div>
+                  {/* Season — pill buttons */}
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>
+                      Which season does this belong to?
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setQuickStorySeason('unsure')}
+                        className="px-2.5 py-1 rounded-lg text-[11px] transition-all"
+                        style={quickStorySeason === 'unsure' ? {
+                          background: 'rgba(88,28,135,0.5)',
+                          border: '1px solid rgba(212,164,84,0.35)',
+                          color: 'rgba(212,164,84,0.9)',
+                        } : {
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.07)',
+                          color: 'rgba(255,255,255,0.35)',
+                        }}
+                      >
+                        I&apos;m not sure yet
+                      </button>
+                      {(state.seasonalCalendar?.seasons ?? []).map((season) => (
+                        <button
+                          key={season.id}
+                          type="button"
+                          onClick={() => setQuickStorySeason(season.id)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] transition-all"
+                          style={quickStorySeason === season.id ? {
+                            background: 'rgba(88,28,135,0.5)',
+                            border: '1px solid rgba(212,164,84,0.35)',
+                            color: 'rgba(212,164,84,0.9)',
+                          } : {
+                            background: 'rgba(255,255,255,0.02)',
+                            border: '1px solid rgba(255,255,255,0.07)',
+                            color: 'rgba(255,255,255,0.35)',
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: season.colorPalette.accentColor }} />
+                          {season.nameEnglish}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* When did this happen — dropdown */}
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>
+                      When did this happen? <span style={{ color: 'rgba(255,255,255,0.15)' }}>(optional)</span>
+                    </label>
+                    <select
+                      value={quickStoryEraId}
+                      onChange={(e) => setQuickStoryEraId(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }}
+                    >
+                      {ERA_OPTIONS.map((era) => (
+                        <option key={era.id} value={era.id}>{era.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <BtnSecondary onClick={() => setShowQuickStory(false)}>Cancel</BtnSecondary>
+                    <BtnPrimary onClick={handleQuickStorySave} disabled={!quickStoryTitle.trim() || !quickStoryContent.trim()}>Save</BtnPrimary>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setShowQuickStory(true)}
+                    className="flex-1 text-sm py-2.5 rounded-xl transition-all"
+                    style={{ color: 'rgba(212,164,84,0.7)', border: '1px solid rgba(212,164,84,0.2)', background: 'rgba(212,164,84,0.05)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.1)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.05)'; }}>
+                    + Quick story
+                  </button>
+                  <button onClick={() => onAddStory(person.id)}
+                    className="flex-1 text-sm py-2.5 rounded-xl transition-all"
+                    style={{ color: 'rgba(139,92,246,0.7)', border: '1px solid rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.05)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.1)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.05)'; }}>
+                    + Full story
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ════ CONNECTIONS TAB ════ */}
           {activeTab === 'connections' && (
             <div className="space-y-2" data-section="connections">
@@ -412,7 +710,7 @@ export function PersonPanel({
                   <div key={rel.id} className="px-3 py-2 rounded-lg flex items-center justify-between"
                     style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
                     <span className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>{getRelatedPersonName(rel)}</span>
-                    <span className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>{rel.relationshipType.replace(/_/g, ' ')}</span>
+                    <span className="text-xs" style={{ color: 'rgba(255,255,255,0.50)' }}>{rel.relationshipType.replace(/_/g, ' ')}</span>
                   </div>
                 ))
               )}
@@ -420,84 +718,62 @@ export function PersonPanel({
                 className="text-xs transition-colors py-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
                 + Add connection
               </button>
-            </div>
-          )}
 
-          {/* Invite link (self-star only) */}
-          {isSelf && (
-            <div className="mt-6 pt-4 border-t border-white/[0.06]">
-              {inviteLink ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-xs text-white/40">Share this link to connect:</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      readOnly
-                      value={inviteLink}
-                      className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white/70 truncate"
-                      onFocus={(e) => e.target.select()}
-                    />
+              {/* Invite to collaborate — self-star only */}
+              {isSelf && (
+                <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(88,28,135,0.2)' }}>
+                  {inviteLink ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs" style={{ color: 'rgba(255,255,255,0.60)' }}>Share this link to collaborate:</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          value={inviteLink}
+                          className="flex-1 rounded px-2 py-1.5 text-xs truncate focus:outline-none"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.65)' }}
+                          onFocus={(e) => e.target.select()}
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(inviteLink);
+                            setInviteCopied(true);
+                            setTimeout(() => setInviteCopied(false), 2000);
+                          }}
+                          className="text-xs shrink-0 transition-colors"
+                          style={{ color: inviteCopied ? 'rgba(134,239,172,0.8)' : 'rgba(212,164,84,0.6)' }}
+                        >
+                          {inviteCopied ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(inviteLink);
-                        setInviteCopied(true);
-                        setTimeout(() => setInviteCopied(false), 2000);
+                      disabled={inviteLoading}
+                      onClick={async () => {
+                        setInviteLoading(true);
+                        try {
+                          const res = await fetch('/api/invite/create', { method: 'POST' });
+                          const data = await res.json();
+                          if (data.token) setInviteLink(`${window.location.origin}/invite/${data.token}`);
+                        } catch { /* ignore */ }
+                        setInviteLoading(false);
                       }}
-                      className="text-xs text-amber-400/60 hover:text-amber-400/80 transition-colors shrink-0"
+                      className="w-full text-xs py-2.5 rounded-xl transition-all disabled:opacity-40"
+                      style={{
+                        color: 'rgba(212,164,84,0.65)',
+                        border: '1px solid rgba(212,164,84,0.2)',
+                        background: 'rgba(212,164,84,0.04)',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.08)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.04)'; }}
                     >
-                      {inviteCopied ? 'Copied!' : 'Copy'}
+                      {inviteLoading ? 'Creating link…' : 'Invite someone to collaborate'}
                     </button>
-                  </div>
+                  )}
                 </div>
-              ) : (
-                <button
-                  disabled={inviteLoading}
-                  onClick={async () => {
-                    setInviteLoading(true);
-                    try {
-                      const res = await fetch('/api/invite/create', { method: 'POST' });
-                      const data = await res.json();
-                      if (data.token) setInviteLink(`${window.location.origin}/invite/${data.token}`);
-                    } catch { /* ignore */ }
-                    setInviteLoading(false);
-                  }}
-                  className="w-full text-xs text-amber-400/60 hover:text-amber-400/80 transition-colors py-2 border border-amber-400/15 rounded-lg hover:bg-amber-400/5 disabled:opacity-40"
-                >
-                  {inviteLoading ? 'Creating link…' : 'Invite someone to your constellation'}
-                </button>
               )}
             </div>
           )}
-
-          {/* Delete */}
-          <div className="mt-6 pt-4 border-t border-white/[0.06]">
-            {confirmDelete ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-red-400/60">Remove {person.displayName}?</span>
-                <button
-                  onClick={() => {
-                    dispatch({ type: 'DELETE_PERSON', payload: person.id });
-                    onClose();
-                  }}
-                  className="text-xs text-red-400/70 hover:text-red-400 transition-colors px-2 py-1 rounded border border-red-400/20"
-                >
-                  Remove
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="text-xs text-white/30 hover:text-white/50 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="text-xs text-red-400/40 hover:text-red-400/70 transition-colors"
-              >
-                Remove from sky
-              </button>
-            )}
-          </div>
 
           {/* ════ MEDIA TAB ════ */}
           {activeTab === 'media' && (
@@ -508,57 +784,6 @@ export function PersonPanel({
                   Storage getting full. Consider removing old photos before adding more.
                 </div>
               )}
-
-              {/* ── Stories ── */}
-              <div className="pt-4 mt-2" style={{ borderBottom: '1px solid rgba(88,28,135,0.18)', paddingBottom: '12px' }}>
-                <p className="text-xs uppercase tracking-wider mb-3 font-medium" style={{ color: 'rgba(212,164,84,0.5)' }}>
-                  Stories <span style={{ color: 'rgba(139,92,246,0.5)' }}>({person.stories.length})</span>
-                </p>
-                <div className="space-y-2">
-                  {person.stories.length === 0 && !showQuickStory && (
-                    <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                      No stories yet. This star is waiting to be illuminated.
-                    </p>
-                  )}
-                  {person.stories.map((story) => (
-                    <div key={story.id} className="px-3 py-2.5 rounded-lg"
-                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>{story.title}</span>
-                      <span className="text-xs ml-2 capitalize" style={{ color: 'rgba(255,255,255,0.25)' }}>{story.type}</span>
-                    </div>
-                  ))}
-                  {showQuickStory ? (
-                    <div className="mt-2 p-4 rounded-lg space-y-3"
-                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(88,28,135,0.25)' }}>
-                      <Field label="Title" value={quickStoryTitle} onChange={setQuickStoryTitle} placeholder="Story title" />
-                      <div>
-                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Story</label>
-                        <textarea value={quickStoryContent} onChange={(e) => setQuickStoryContent(e.target.value)}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          placeholder="Tell the story..." rows={4}
-                          className="w-full rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none"
-                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }} />
-                      </div>
-                      <SeasonPicker value={quickStorySeason} onChange={setQuickStorySeason} />
-                      <div className="flex gap-2">
-                        <BtnSecondary onClick={() => setShowQuickStory(false)}>Cancel</BtnSecondary>
-                        <BtnPrimary onClick={handleQuickStorySave} disabled={!quickStoryTitle.trim() || !quickStoryContent.trim()}>Save</BtnPrimary>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={() => setShowQuickStory(true)} className="flex-1 text-sm py-2 rounded-lg transition-all"
-                        style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        + Quick story
-                      </button>
-                      <button onClick={() => onAddStory(person.id)} className="flex-1 text-sm py-2 rounded-lg transition-all"
-                        style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        + Full story
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
 
               {/* ── Photos ── */}
               <MediaSubSection title="Photos" count={photos.length}
@@ -580,7 +805,7 @@ export function PersonPanel({
                         <span className="text-sm block truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
                           {e.caption || 'Untitled photo'}
                         </span>
-                        <span className="text-xs block" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                        <span className="text-xs block" style={{ color: 'rgba(255,255,255,0.50)' }}>
                           {e.useIndigenousCalendar && e.seasonTag !== 'unsure'
                             ? state.seasonalCalendar?.seasons.find((s) => s.id === e.seasonTag)?.name ?? e.seasonTag
                             : e.date || 'No date'}
@@ -662,7 +887,7 @@ export function PersonPanel({
                       <Field label="Title" value={aTitle} onChange={setATitle} placeholder="Article name" />
                       <Field label="URL" value={aUrl} onChange={setAUrl} placeholder="https://…" />
                       <div>
-                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Your note (optional)</label>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>Your note (optional)</label>
                         <textarea value={aNote} onChange={(e) => setANote(e.target.value)}
                           onMouseDown={(e) => e.stopPropagation()}
                           placeholder="Why does this article matter to you?" rows={3}
@@ -706,7 +931,7 @@ export function PersonPanel({
                       <Field label="Title" value={vTitle} onChange={setVTitle} placeholder="Video name" />
                       <Field label="URL" value={vUrl} onChange={setVUrl} placeholder="https://…" />
                       <div>
-                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Your note (optional)</label>
+                        <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.60)' }}>Your note (optional)</label>
                         <textarea value={vNote} onChange={(e) => setVNote(e.target.value)}
                           onMouseDown={(e) => e.stopPropagation()}
                           placeholder="What's this video about?" rows={3}
@@ -780,7 +1005,7 @@ function MediaSubSection({ title, count, open, onToggle, children }: {
         </button>
       ) : (
         <p className="text-xs uppercase tracking-wider font-medium mb-2"
-          style={{ color: 'rgba(212,164,84,0.5)' }}>{title}</p>
+          style={{ color: 'rgba(212,164,84,0.75)' }}>{title}</p>
       )}
       {isOpen && children}
     </div>
@@ -792,7 +1017,7 @@ function Field({ label, value, onChange, placeholder }: {
 }) {
   return (
     <div>
-      <label className="block text-xs text-white/35 mb-1.5">{label}</label>
+      <label className="block text-xs text-white/60 mb-1.5">{label}</label>
       <input
         type="text"
         value={value}
@@ -809,105 +1034,3 @@ function Field({ label, value, onChange, placeholder }: {
   );
 }
 
-// ── Language / Country group combobox ────────────────────────────────────────
-const LANGUAGE_OPTIONS: { label: string; state: string; alternates: string[] }[] = regions
-  .filter((r) => r.id !== 'not_listed')
-  .map((r) => ({ label: r.displayName, state: r.stateTerritory, alternates: r.alternateNames ?? [] }));
-
-function LanguageGroupCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState(value);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setSearch(value); }, [value]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const filtered = search.trim()
-    ? LANGUAGE_OPTIONS.filter((o) =>
-        o.label.toLowerCase().includes(search.toLowerCase()) ||
-        o.alternates.some((a) => a.toLowerCase().includes(search.toLowerCase())))
-    : LANGUAGE_OPTIONS;
-
-  const hasExactMatch = LANGUAGE_OPTIONS.some((o) => o.label.toLowerCase() === search.trim().toLowerCase());
-
-  function select(label: string) { onChange(label); setSearch(label); setOpen(false); }
-
-  const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, o) => {
-    const key = o.state || 'Other';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(o);
-    return acc;
-  }, {});
-
-  return (
-    <div ref={ref} className="relative">
-      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Mob / Language group</label>
-      <div className="relative">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => {
-            const v = e.target.value;
-            const cap = v.length > 0 ? v[0].toUpperCase() + v.slice(1) : v;
-            setSearch(cap); onChange(cap); setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder="Search or type your own…"
-          autoCapitalize="sentences"
-          className="w-full bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2.5 pr-8 text-sm text-white/75 placeholder:text-white/20 focus:outline-none focus:border-white/[0.18]"
-        />
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-70 transition-opacity"
-          tabIndex={-1}
-          aria-label="Toggle list"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-            <path d="M2 3.5l3 3 3-3" stroke="rgba(139,92,246,0.9)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-      {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-[70]"
-          style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(88,28,135,0.4)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', maxHeight: 220, overflowY: 'auto' }}>
-          {search.trim() && !hasExactMatch && (
-            <button type="button" onClick={() => select(search.trim())}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] border-b"
-              style={{ color: 'rgba(212,164,84,0.85)', borderColor: 'rgba(88,28,135,0.25)' }}>
-              <span style={{ color: 'rgba(212,164,84,0.45)' }}>+</span>
-              Use &quot;{search.trim()}&quot;
-            </button>
-          )}
-          {Object.entries(grouped).map(([state, opts]) => (
-            <div key={state}>
-              <div className="px-3 py-1 sticky top-0"
-                style={{ background: 'rgba(8,4,22,0.95)', color: 'rgba(139,92,246,0.5)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                {state}
-              </div>
-              {opts.map((o) => (
-                <button key={o.label} type="button" onClick={() => select(o.label)}
-                  className="w-full text-left px-3 py-2 text-[12px] transition-all"
-                  style={{ color: value === o.label ? 'rgba(212,164,84,0.95)' : 'rgba(255,255,255,0.65)', background: value === o.label ? 'rgba(88,28,135,0.4)' : 'transparent' }}>
-                  {o.label}
-                  {o.alternates.length > 0 && (
-                    <span className="ml-1.5 text-[10px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
-                      ({o.alternates.slice(0, 2).join(', ')}{o.alternates.length > 2 ? '…' : ''})
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}

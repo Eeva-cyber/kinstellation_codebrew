@@ -62,10 +62,7 @@ export type StoryType = 'audio' | 'photo' | 'text' | 'video';
 
 export type KinshipTemplateType =
   | 'moiety_only'
-  | 'four_section'
-  | 'eight_subsection'
-  | 'gendered_subsection'
-  | 'torres_strait_clan';
+  | 'kulin_nation';
 
 export interface Story {
   id: string;
@@ -95,6 +92,9 @@ export interface Person {
   totemClan?: string;
   totemNation?: string;
   mob?: string;
+  nation?: string;
+  clan?: string;
+  community?: string;
   countryLanguageGroup?: string;
   regionSelectorValue: string;
   isDeceased: boolean;

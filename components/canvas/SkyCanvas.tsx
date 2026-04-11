@@ -30,7 +30,10 @@ import { StoriesRiverPanel } from '@/components/panels/StoriesRiverPanel';
 import { QuickAddModal } from '@/components/panels/QuickAddModal';
 import { TimelinePanel } from '@/components/panels/TimelinePanel';
 import { StoryPopup } from '@/components/ui/StoryPopup';
+import { PlanetInfoPopup, type AttributeClickInfo } from './PlanetInfoPopup';
 import { WordTooltip } from '@/components/ui/WordTooltip';
+import { TutorialOverlay } from './TutorialOverlay';
+import { SavePrompt } from './SavePrompt';
 import type { Person, Story, MediaEntry } from '@/lib/types';
 
 type PanelType = 'person' | 'addPerson' | 'story' | 'connection' | 'river' | 'timeline' | null;
@@ -58,10 +61,12 @@ export function SkyCanvas() {
   const [personPanelFocus, setPersonPanelFocus] = useState<'identity' | 'stories' | 'connections' | undefined>(undefined);
   const [dragging, setDragging] = useState<string | null>(null);
   const [activeStory, setActiveStory] = useState<{ story: Story; personName: string; personId: string } | null>(null);
+  const [activePlanetInfo, setActivePlanetInfo] = useState<AttributeClickInfo | null>(null);
   const [activeMediaEntry, setActiveMediaEntry] = useState<{ entry: MediaEntry; person: Person } | null>(null);
   const [impactScores, setImpactScores] = useState<Record<string, number>>({});
   const scoringInFlight = useRef<Set<string>>(new Set());
   const dragOffset = useRef({ x: 0, y: 0 });
+  const wasDraggingRef = useRef(false);
   const simulationRef = useRef<ReturnType<typeof forceSimulation<NodeDatum>> | null>(null);
   const [filterSeasonIds, setFilterSeasonIds] = useState<string[]>([]);
   const [activeMoiety, setActiveMoiety] = useState<string | null>(null);
@@ -72,6 +77,16 @@ export function SkyCanvas() {
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteOverlay, setShowInviteOverlay] = useState(false);
   const pendingCenterId = useRef<string | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [hoveredPersonId, setHoveredPersonId] = useState<string | null>(null);
+  const [hoveredRelId, setHoveredRelId] = useState<string | null>(null);
+
+  // Read tutorial pending flag on mount (after hydration)
+  useEffect(() => {
+    if (localStorage.getItem('kinstellation_tutorial_pending') === 'true') {
+      setShowTutorial(true);
+    }
+  }, []);
 
   // Refs that always hold the latest state — used by event handlers that can't be re-registered
   const zoomRef = useRef(1);
@@ -129,7 +144,7 @@ export function SkyCanvas() {
     const profile = localStorage.getItem('kinstellation_profile');
     if (!profile) return;
 
-    let parsed: { name?: string; mob?: string; skinName?: string; moiety?: string } = {};
+    let parsed: { name?: string; nation?: string; clan?: string; community?: string; skinName?: string; moiety?: string } = {};
     try { parsed = JSON.parse(profile); } catch { return; }
     if (!parsed.name) return;
 
@@ -159,7 +174,9 @@ export function SkyCanvas() {
       displayName: parsed.name.trim(),
       skinName: parsed.skinName ?? undefined,
       moiety: parsed.moiety ?? undefined,
-      countryLanguageGroup: parsed.mob ?? undefined,
+      clan: parsed.clan ?? undefined,
+      community: parsed.community ?? undefined,
+      countryLanguageGroup: parsed.clan ?? undefined,
       regionSelectorValue: localStorage.getItem('kinstellation_region') ?? '',
       isDeceased: false,
       stories: [],
@@ -315,12 +332,17 @@ export function SkyCanvas() {
     const { width, height } = dimensions;
 
     const nodes: NodeDatum[] = state.persons.map((p) => {
-      const existing = nodePositions[p.id];
+      const existing = nodePositionsRef.current[p.id];
+      const x = existing?.x ?? p.position?.x ?? width / 2 + (Math.random() - 0.5) * 200;
+      const y = existing?.y ?? p.position?.y ?? height / 2 + (Math.random() - 0.5) * 200;
       return {
         id: p.id,
         moiety: p.moiety,
-        x: existing?.x ?? width / 2 + (Math.random() - 0.5) * 200,
-        y: existing?.y ?? height / 2 + (Math.random() - 0.5) * 200,
+        x,
+        y,
+        // Pin nodes that already have a recorded position — prevents simulation from moving them
+        fx: existing ? x : undefined,
+        fy: existing ? y : undefined,
       };
     });
 
@@ -419,6 +441,8 @@ export function SkyCanvas() {
 
       if (!dragging) return;
 
+      wasDraggingRef.current = true;
+
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const world = screenToWorld(clientX - rect.left, clientY - rect.top);
@@ -451,11 +475,13 @@ export function SkyCanvas() {
     if (simulationRef.current) {
       const node = simulationRef.current.nodes().find((n) => n.id === dragging);
       if (node) {
-        node.fx = null;
-        node.fy = null;
+        const pos = nodePositionsRef.current[dragging];
+        if (pos) { node.fx = pos.x; node.fy = pos.y; }
       }
     }
     setDragging(null);
+    // Clear the drag flag after the click event has had a chance to fire and be suppressed
+    setTimeout(() => { wasDraggingRef.current = false; }, 50);
   }, [dragging, panning]);
 
   // Pan on left-click drag on empty canvas (nodes call stopPropagation, so this only fires on empty space)
@@ -472,6 +498,7 @@ export function SkyCanvas() {
   );
 
   const handleSunClick = useCallback((personId: string) => {
+    if (wasDraggingRef.current) return;
     setActivePersonId(personId);
     setPersonPanelFocus(undefined);
     setActivePanel('person');
@@ -529,15 +556,19 @@ export function SkyCanvas() {
   );
 
   function isPersonDimmed(person: Person): boolean {
-    // Dim if a moiety filter is active and person is NOT in it (including unassigned)
     if (activeMoiety && person.moiety !== activeMoiety) return true;
-    if (filterSeasonIds.length > 0 && !person.stories.some((s) => filterSeasonIds.includes(s.seasonTag))) return true;
     return false;
   }
 
   function isPersonBoosted(person: Person): boolean {
-    // Boosted = active moiety is set AND this person is explicitly in it
+    // Full-star boost only for moiety filter
     return !!(activeMoiety && person.moiety === activeMoiety);
+  }
+
+  function isPersonLinked(personId: string): boolean {
+    if (!hoveredRelId) return false;
+    const rel = state.relationships.find((r) => r.id === hoveredRelId);
+    return !!(rel && (rel.fromPersonId === personId || rel.toPersonId === personId));
   }
 
   // Center on a person — accounts for the 22rem side panel when it's open
@@ -545,7 +576,7 @@ export function SkyCanvas() {
     const pos = nodePositions[personId];
     if (!pos || !containerRef.current) return;
     const { clientWidth: w, clientHeight: h } = containerRef.current;
-    const PANEL_W = withPanel ? 352 : 0;
+    const PANEL_W = withPanel ? 448 : 0;
     setPan({ x: (w - PANEL_W) / 2 - pos.x * zoom, y: h / 2 - pos.y * zoom });
   }
 
@@ -650,8 +681,21 @@ export function SkyCanvas() {
             const fromPerson = state.persons.find((p) => p.id === rel.fromPersonId);
             const toPerson   = state.persons.find((p) => p.id === rel.toPersonId);
 
+            const isEndpoint = (id: string) =>
+              id === rel.fromPersonId || id === rel.toPersonId;
+
             let lineState: 'bright' | 'dim' | 'normal' = 'normal';
-            if (activeMoiety) {
+
+            if (hoveredPersonId) {
+              // Star hover: highlight lines connected to that star, dim all others
+              lineState = isEndpoint(hoveredPersonId) ? 'bright' : 'dim';
+            } else if (hoveredRelId) {
+              // Line hover: highlight only this line
+              lineState = hoveredRelId === rel.id ? 'bright' : 'dim';
+            } else if (filterSeasonIds.length > 0) {
+              // Season filter active: dim all constellation lines
+              lineState = 'dim';
+            } else if (activeMoiety) {
               const fromInActive = fromPerson?.moiety === activeMoiety;
               const toInActive   = toPerson?.moiety   === activeMoiety;
               lineState = (fromInActive && toInActive) ? 'bright' : 'dim';
@@ -667,6 +711,8 @@ export function SkyCanvas() {
                 relationshipType={rel.relationshipType}
                 isAvoidance={rel.isAvoidance}
                 lineState={lineState}
+                onMouseEnter={() => setHoveredRelId(rel.id)}
+                onMouseLeave={() => setHoveredRelId(null)}
               />
             );
           })}
@@ -689,9 +735,14 @@ export function SkyCanvas() {
                 zoom={zoom}
                 dimmed={isPersonDimmed(person)}
                 boosted={isPersonBoosted(person)}
+                activeSeasonIds={filterSeasonIds.length > 0 ? filterSeasonIds : undefined}
+                linked={isPersonLinked(person.id)}
+                onHoverIn={() => setHoveredPersonId(person.id)}
+                onHoverOut={() => setHoveredPersonId(null)}
                 onSunClick={() => handleSunClick(person.id)}
                 onStoryClick={(story) => setActiveStory({ story, personName: person.displayName, personId: person.id })}
                 onPlanetClick={(action) => handlePlanetClick(person.id, action)}
+                onAttributeClick={(info) => setActivePlanetInfo(info)}
                 onMediaEntryClick={(entry) => setActiveMediaEntry({ entry, person })}
                 onDragStart={handleDragStart(person.id)}
               />
@@ -699,9 +750,6 @@ export function SkyCanvas() {
           })}
         </g>
       </svg>
-
-      {/* Season indicator */}
-      <SeasonIndicator />
 
       {/* Season wheel (bottom-left) — hidden when timeline panel is open */}
       {activePanel !== 'timeline' && (
@@ -837,6 +885,7 @@ export function SkyCanvas() {
 
       {/* Bottom toolbar — larger purple/gold FABs */}
       <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-3 items-end">
+        {/* Save progress — above timeline, only for unauthed users with data */}
         <div className="flex items-center gap-3 group/tl">
           <span className="text-xs opacity-0 group-hover/tl:opacity-100 transition-all duration-200 tracking-wide font-light" style={{ color: 'rgba(255,255,255,0.5)' }}>
             Story timeline
@@ -894,6 +943,8 @@ export function SkyCanvas() {
             </svg>
           </button>
         </div>
+        {/* Save progress — below Add a star, only for unauthed users with data */}
+        <SavePrompt />
       </div>
 
       {/* Scroll hint — bottom centre, fades after first wheel event */}
@@ -905,20 +956,6 @@ export function SkyCanvas() {
           Scroll to pan · Ctrl + scroll or pinch to zoom · Drag to move stars
         </div>
       )}
-
-      {/* Settings / change region */}
-      <button
-        onClick={() => {
-          if (confirm('Change your region? This will update your seasonal calendar and kinship template.')) {
-            window.location.href = '/onboarding';
-          }
-        }}
-        className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-lg
-          bg-white/[0.04] border border-white/[0.06] text-white/50 text-xs
-          hover:text-white/70 hover:bg-white/[0.06] transition-all"
-      >
-        {state.seasonalCalendar?.languageGroup ?? 'Settings'}
-      </button>
 
       {/* Empty state */}
       {state.persons.length === 0 && (
@@ -994,6 +1031,35 @@ export function SkyCanvas() {
           entry={activeMediaEntry.entry}
           person={activeMediaEntry.person}
           onClose={() => setActiveMediaEntry(null)}
+        />
+      )}
+
+      {/* Tutorial overlay — new users only */}
+      {showTutorial && (
+        <TutorialOverlay
+          selfPersonName={
+            selfPersonId
+              ? (state.persons.find((p) => p.id === selfPersonId)?.displayName ?? '')
+              : ''
+          }
+          onOpenAddPerson={() => setActivePanel('addPerson')}
+          onComplete={() => {
+            localStorage.removeItem('kinstellation_tutorial_pending');
+            setShowTutorial(false);
+          }}
+        />
+      )}
+
+      {/* Planet info popup — appears when clicking an identity attribute planet */}
+      {activePlanetInfo && (
+        <PlanetInfoPopup
+          info={activePlanetInfo}
+          onClose={() => setActivePlanetInfo(null)}
+          onViewProfile={() => {
+            setActivePersonId(activePlanetInfo.personId);
+            setPersonPanelFocus('identity');
+            setActivePanel('person');
+          }}
         />
       )}
 

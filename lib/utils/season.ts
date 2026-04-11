@@ -17,10 +17,10 @@ export function getStarRadius(storyCount: number): number {
 }
 
 export function getStarOpacity(storyCount: number, lastUpdated: string): number {
-  const base = storyCount === 0 ? 0.25 : 0.6 + Math.min(storyCount * 0.08, 0.4);
+  const base = storyCount === 0 ? 0.6 : 0.75 + Math.min(storyCount * 0.06, 0.25);
   const daysSinceUpdate =
     (Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60 * 24);
-  const decay = daysSinceUpdate > 90 ? Math.max(0.15, 1 - (daysSinceUpdate - 90) / 365) : 1;
+  const decay = daysSinceUpdate > 90 ? Math.max(0.25, 1 - (daysSinceUpdate - 90) / 365) : 1;
   return base * decay;
 }
 

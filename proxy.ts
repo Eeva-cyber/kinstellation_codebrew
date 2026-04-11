@@ -32,7 +32,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Allow invite pages, public assets, and API routes through
+  // Always allow: invite pages, public assets, API routes
   if (pathname.startsWith('/invite/')) {
     return supabaseResponse;
   }
@@ -42,18 +42,15 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Protected routes: redirect to /login if not authenticated
-  const isProtected =
-    pathname.startsWith('/canvas') || pathname.startsWith('/onboarding');
-  if (isProtected && !user) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
+  // Redirect /login to landing page (auth is handled by SignInModal)
+  if (pathname.startsWith('/login')) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  // Redirect authenticated users away from login to canvas
-  if (pathname === '/login' && user) {
-    return NextResponse.redirect(new URL('/canvas', request.url));
+  // /onboarding is open without auth — account creation happens there
+  // /canvas requires auth — redirect to landing page if not authenticated
+  if (pathname.startsWith('/canvas') && !user) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   return supabaseResponse;
