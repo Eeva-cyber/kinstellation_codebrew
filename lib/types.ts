@@ -63,7 +63,10 @@ export type StoryType = 'audio' | 'photo' | 'text' | 'video';
 export type KinshipTemplateType =
   | 'moiety_only'
   | 'kulin_nation'
-  | 'warlpiri';
+  | 'warlpiri'
+  | 'yorta_yorta'
+  | 'wergaia'
+  | 'gunditjmara';
 
 export interface Story {
   id: string;

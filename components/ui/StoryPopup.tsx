@@ -146,6 +146,7 @@ export function StoryPopup({
   const [editEraId, setEditEraId] = useState(() => ERA_OPTIONS.find(e => e.year === story.year)?.id ?? '');
 
   const isPhoto = story.type === 'photo';
+  const isAudio = story.type === 'audio';
 
   function handleSave() {
     const updated: Story = {
@@ -227,8 +228,8 @@ export function StoryPopup({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* Edit toggle — pen to enter, back-arrow to exit */}
-              <button
+              {/* Edit toggle — hidden for audio stories (view-only playback) */}
+              {!isAudio && <button
                 onClick={() => isEditing ? handleCancel() : setIsEditing(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                 style={{
@@ -249,7 +250,7 @@ export function StoryPopup({
                     <path d="M8 2l2 2-6 6H2V8L8 2z" stroke="rgba(139,92,246,0.8)" strokeWidth="1.2" strokeLinejoin="round" />
                   </svg>
                 )}
-              </button>
+              </button>}
               <button
                 onClick={onClose}
                 className="w-8 h-8 flex items-center justify-center rounded-lg transition-all text-xl leading-none"
@@ -322,7 +323,7 @@ export function StoryPopup({
 
           {/* Content */}
           <div className="mb-5">
-            {isEditing && !isPhoto ? (
+            {isEditing && !isPhoto && !isAudio ? (
               <div className="relative">
                 <textarea
                   value={editContent}
@@ -340,6 +341,23 @@ export function StoryPopup({
                 <img src={story.content} alt={story.title} className="w-full rounded-xl object-cover max-h-72" />
               ) : (
                 <p className="text-base italic" style={{ color: 'rgba(255,255,255,0.25)' }}>Photo not available</p>
+              )
+            ) : isAudio ? (
+              story.content.startsWith('data:') ? (
+                <div
+                  className="rounded-xl p-3"
+                  style={{ background: 'rgba(88,28,135,0.18)', border: '1px solid rgba(139,92,246,0.3)' }}
+                >
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio
+                    controls
+                    src={story.content}
+                    className="w-full"
+                    style={{ accentColor: '#D4A454' }}
+                  />
+                </div>
+              ) : (
+                <p className="text-base italic" style={{ color: 'rgba(255,255,255,0.25)' }}>Audio not available</p>
               )
             ) : (
               <p className="text-base leading-relaxed whitespace-pre-wrap" style={{ color: 'rgba(255,255,255,0.90)' }}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '@/lib/store/AppContext';
 import type { Person, Story, StoryType, Visibility } from '@/lib/types';
 
@@ -179,7 +179,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
   function handleSave() {
     if (!title.trim()) return;
     if (storyType === 'text' && !content.trim()) return;
-    if (storyType === 'photo' && !content) return;
+    if ((storyType === 'photo' || storyType === 'audio') && !content) return;
 
     const eraYear = ERA_OPTIONS.find((e) => e.id === eraId)?.year;
     const story: Story = {
@@ -252,7 +252,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
             <div>
               <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Type</label>
               <div className="flex gap-2">
-                {(['text', 'photo'] as StoryType[]).map((t) => (
+                {(['text', 'photo', 'audio'] as StoryType[]).map((t) => (
                   <button
                     key={t}
                     type="button"
@@ -293,7 +293,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
                   />
                 </div>
               </div>
-            ) : (
+            ) : storyType === 'photo' ? (
               <div>
                 <label className="block text-xs mb-1.5" style={LABEL_STYLE}>Photo</label>
                 <input
@@ -307,7 +307,9 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
                   <img src={photoPreview} alt="Preview" className="mt-2 rounded-lg max-h-32 object-cover w-full" />
                 )}
               </div>
-            )}
+            ) : storyType === 'audio' ? (
+              <InlineAudioRecorder onRecordingComplete={setContent} currentContent={content} />
+            ) : null}
 
             {/* Season — pill buttons */}
             <div>
@@ -405,7 +407,7 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
             {/* Save */}
             <button
               onClick={handleSave}
-              disabled={!title.trim() || (storyType === 'text' && !content.trim()) || (storyType === 'photo' && !content)}
+              disabled={!title.trim() || (storyType === 'text' && !content.trim()) || ((storyType === 'photo' || storyType === 'audio') && !content)}
               className="w-full py-3 rounded-xl text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
                 background: 'rgba(88,28,135,0.65)',
@@ -417,6 +419,164 @@ export function StoryPanel({ person, onClose }: StoryPanelProps) {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Inline audio recorder (used inside StoryPanel when type === 'audio') ───────
+
+type InlinePhase = 'idle' | 'recording' | 'stopped';
+
+function fmtSecs(s: number) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
+function InlineAudioRecorder({
+  onRecordingComplete,
+  currentContent,
+}: {
+  onRecordingComplete: (base64: string) => void;
+  currentContent: string;
+}) {
+  const [phase, setPhase]       = useState<InlinePhase>('idle');
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [elapsed, setElapsed]   = useState(0);
+  const [error, setError]       = useState<string | null>(null);
+
+  const mrRef     = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const start = useCallback(async () => {
+    setError(null);
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setError('Audio recording is not supported in this browser.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType =
+        MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' :
+        MediaRecorder.isTypeSupported('audio/webm')             ? 'audio/webm' : '';
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mrRef.current = mr;
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const usedMime = mr.mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: usedMime });
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+        setPhase('stopped');
+        const reader = new FileReader();
+        reader.onload = () => { onRecordingComplete(reader.result as string); };
+        reader.readAsDataURL(blob);
+      };
+      mr.start(500);
+      setPhase('recording');
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+    } catch (err: unknown) {
+      const isDenied = err instanceof DOMException && err.name === 'NotAllowedError';
+      setError(isDenied ? 'Microphone access denied.' : 'Could not start recording.');
+    }
+  }, [onRecordingComplete]);
+
+  function stop() {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    mrRef.current?.stop();
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  }
+
+  function reRecord() {
+    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+    onRecordingComplete('');
+    setElapsed(0);
+    setPhase('idle');
+    setError(null);
+  }
+
+  return (
+    <div>
+      <label className="block text-xs mb-1.5" style={{ color: 'rgba(212,164,84,0.82)' }}>Audio recording</label>
+      <div
+        className="rounded-xl p-4 flex flex-col items-center gap-3"
+        style={{ background: 'rgba(88,28,135,0.12)', border: '1px solid rgba(139,92,246,0.25)' }}
+      >
+        {phase === 'idle' && (
+          <>
+            {currentContent && (
+              <p className="text-[10px] self-start" style={{ color: 'rgba(212,164,84,0.6)' }}>
+                Recording saved — click Re-record to replace it.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={start}
+              className="w-full py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+              style={{ background: 'rgba(212,164,84,0.1)', border: '1px solid rgba(212,164,84,0.3)', color: 'rgba(212,164,84,0.85)' }}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                <rect x="4.5" y="1" width="5" height="7" rx="2.5" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M2 7a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="7" y1="12" x2="7" y2="13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              {currentContent ? 'Re-record' : 'Start recording'}
+            </button>
+            {error && <p className="text-xs" style={{ color: 'rgba(248,113,113,0.9)' }}>{error}</p>}
+          </>
+        )}
+        {phase === 'recording' && (
+          <>
+            <div className="relative flex items-center justify-center w-12 h-12">
+              <span className="absolute w-12 h-12 rounded-full animate-star-pulse" style={{ background: 'rgba(248,113,113,0.18)' }} />
+              <span className="w-7 h-7 rounded-full" style={{ background: 'rgba(248,113,113,0.85)' }} />
+            </div>
+            <p className="text-xl font-mono font-semibold tracking-widest" style={{ color: 'rgba(212,164,84,0.95)' }}>
+              {fmtSecs(elapsed)}
+            </p>
+            <button
+              type="button"
+              onClick={stop}
+              className="w-full py-2.5 rounded-xl text-sm transition-all"
+              style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: 'rgba(248,113,113,0.9)' }}
+            >
+              Stop recording
+            </button>
+          </>
+        )}
+        {phase === 'stopped' && audioUrl && (
+          <>
+            <p className="text-[10px] self-start" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              Recording · {fmtSecs(elapsed)}
+            </p>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <audio controls src={audioUrl} className="w-full" style={{ accentColor: '#D4A454' }} />
+            <button
+              type="button"
+              onClick={reRecord}
+              className="w-full py-2 rounded-xl text-xs transition-all"
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}
+            >
+              Re-record
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

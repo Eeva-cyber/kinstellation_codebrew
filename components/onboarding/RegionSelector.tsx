@@ -276,7 +276,7 @@ function NationSearch({ selected, onSelect }: { selected: Region | null; onSelec
           <div className="panel-scroll p-1.5" style={{ maxHeight: 280, overflowY: 'auto' }}>
             {results.length === 0 ? (
               <p className="text-center text-sm py-5" style={{ color: 'rgba(139,92,246,0.4)' }}>
-                No Nation found for &ldquo;{query}&rdquo;
+                No Mob or Country found for &ldquo;{query}&rdquo;
               </p>
             ) : results.map(r => (
               <ResultRow key={r.id}
@@ -304,7 +304,7 @@ function NationSearch({ selected, onSelect }: { selected: Region | null; onSelec
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(88,28,135,0.06)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
       >
-        <span className="text-sm" style={{ color: 'rgba(139,92,246,0.4)' }}>My Nation isn&apos;t listed</span>
+        <span className="text-sm" style={{ color: 'rgba(139,92,246,0.4)' }}>My Mob or Country isn&apos;t listed</span>
       </button>
     </div>
   );
@@ -871,22 +871,22 @@ export function RegionSelector() {
       sub:     'This is how you\'ll appear in your constellation.',
     },
     1: {
-      heading: 'Which is your Nation?',
-      sub:     'Your Nation is the foundation of your kinship and Country — the people and place you belong to.',
+      heading: 'What\'s your Mob or Country?',
+      sub:     'Also called your Nation or Language Group. For example: Wurundjeri, Gunditjmara, or Yorta Yorta.',
     },
     2: {
       heading: 'What is your language group?',
-      sub:     'The language of your Country. This may differ from your Nation name — one Nation can hold several languages. Skip if you\'re not sure.',
+      sub:     'The language tied to your Country. One Nation may hold several languages.',
       skip:    true,
     },
     3: {
       heading: 'Which Community are you from?',
-      sub:     'The community, town, or mob your family identifies with.',
+      sub:     'A specific place, reserve, mission, or urban community you\'re connected to.',
       skip:    true,
     },
     4: {
       heading: 'Which moiety do you belong to?',
-      sub:     'Your moiety is inferred from your Nation or Community where known.',
+      sub:     'Moiety is a kinship system that divides your community into two complementary groups. It governs relationships, ceremony, and Country responsibility.',
       skip:    true,
     },
   };

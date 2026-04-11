@@ -102,7 +102,7 @@ export const regions: Region[] = [
       'Builders of the Budj Bim eel aquaculture system — a UNESCO World Heritage site ' +
       'and one of the world\'s oldest engineering works, more than 6,600 years old.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'gunditjmara',
   },
   {
     id: 'djab_wurrung',
@@ -141,7 +141,7 @@ export const regions: Region[] = [
       'People of the Mallee and Wimmera. Country includes Lake Hindmarsh, Lake Albacutya, ' +
       'and the lower Wimmera River. The Wergaia language encompasses several related clan groups.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'wergaia',
   },
   {
     id: 'latje_latje',
@@ -180,7 +180,7 @@ export const regions: Region[] = [
       'River people of the Dungala (Murray) and the Barmah-Millewa Forest — the world\'s largest river red gum forest. ' +
       'Led a landmark High Court Native Title case in 2002.',
     calendarId: 'generic',
-    kinshipTemplateType: 'moiety_only',
+    kinshipTemplateType: 'yorta_yorta',
   },
 
   // ── Gippsland ────────────────────────────────────────────────────────────

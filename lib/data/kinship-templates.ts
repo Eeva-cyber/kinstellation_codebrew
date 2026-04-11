@@ -47,4 +47,47 @@ export const kinshipTemplates: Record<KinshipTemplateType, KinshipTemplate> = {
       'Your moiety is inherited from your father and governs marriage, ceremony, and your relationships to Country. ' +
       'Skin names encode both moiety and generation level.',
   },
+
+  /**
+   * Yorta Yorta — Dungala (Murray River) peoples.
+   * Eaglehawk / Crow moiety system, well-documented for Murray River and adjacent peoples.
+   * Sources: Howitt (1904) The Native Tribes of South-East Australia;
+   * AIATSIS; Yorta Yorta Nation Aboriginal Corporation.
+   */
+  yorta_yorta: {
+    templateType: 'yorta_yorta',
+    moietyNames: ['Eaglehawk', 'Crow'],
+    description:
+      'Yorta Yorta people of the Dungala (Murray River) follow the Eaglehawk and Crow moiety system. ' +
+      'These two complementary halves organise kinship, marriage, and ceremony across the Murray River peoples. ' +
+      'Your moiety is inherited and governs your relationships to Country, kin, and ceremony.',
+  },
+
+  /**
+   * Wergaia — Mallee and Wimmera region.
+   * Krokitch (White Cockatoo) / Kapoogi (Crow) documented phratry system.
+   * Sources: Howitt (1904) The Native Tribes of South-East Australia;
+   * AIATSIS records for northwest Victorian groups (Wotjobaluk/Wergaia).
+   */
+  wergaia: {
+    templateType: 'wergaia',
+    moietyNames: ['Krokitch (White Cockatoo)', 'Kapoogi (Crow)'],
+    description:
+      'Wergaia people of the Mallee and Wimmera follow the Krokitch and Kapoogi phratry system. ' +
+      'Krokitch (White Cockatoo) and Kapoogi (Crow) are the two complementary halves ' +
+      'that organise kinship, marriage, and ceremony across Country.',
+  },
+
+  /**
+   * Gunditjmara — South-west Victoria.
+   * Krokitch / Kapoogi documented phratry system, shared with adjacent Mallee-Wimmera groups.
+   * Sources: Howitt (1904); AIATSIS.
+   */
+  gunditjmara: {
+    templateType: 'gunditjmara',
+    moietyNames: ['Krokitch (White Cockatoo)', 'Kapoogi (Crow)'],
+    description:
+      'Gunditjmara people of south-west Victoria follow the Krokitch and Kapoogi phratry system. ' +
+      'Your moiety organises kinship, marriage, and ceremony, and your connection to Budj Bim Country.',
+  },
 };

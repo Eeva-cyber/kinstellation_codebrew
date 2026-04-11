@@ -8,6 +8,7 @@ import type {
 } from '@/lib/types';
 import { SeasonPicker } from '@/components/ui/SeasonPicker';
 import { WordTooltip } from '@/components/ui/WordTooltip';
+import { AudioRecorderModal } from '@/components/ui/AudioRecorderModal';
 
 // ── Web Speech API types ─────────────────────────────────────────────────────
 interface ISpeechRecognition extends EventTarget {
@@ -255,6 +256,7 @@ export function PersonPanel({
 
   // Quick story
   const [showQuickStory, setShowQuickStory]         = useState(false);
+  const [showAudioRecorder, setShowAudioRecorder]   = useState(false);
   const [quickStoryTitle, setQuickStoryTitle]       = useState('');
   const [quickStoryContent, setQuickStoryContent]   = useState('');
   const [quickStoryType]                            = useState<StoryType>('text');
@@ -434,6 +436,7 @@ export function PersonPanel({
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="absolute top-0 right-0 h-full z-30 animate-slide-right select-auto" style={{ width: '28rem' }} onMouseDown={(e) => e.stopPropagation()}>
       <div ref={scrollRef} className="h-full flex flex-col backdrop-blur-xl panel-scroll"
         style={{
@@ -757,21 +760,38 @@ export function PersonPanel({
                   </div>
                 </div>
               ) : (
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setShowQuickStory(true)}
-                    className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
-                    style={{ color: 'rgba(212,164,84,0.7)', border: '1px solid rgba(212,164,84,0.2)', background: 'rgba(212,164,84,0.05)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.1)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.05)'; }}>
-                    + Quick story
+                <div className="flex flex-col gap-2 pt-1">
+                  {/* Record a yarn — captures actual audio, distinct from speech-to-text */}
+                  <button
+                    onClick={() => setShowAudioRecorder(true)}
+                    className="w-full text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+                    style={{ color: 'rgba(212,164,84,0.85)', border: '1px solid rgba(212,164,84,0.3)', background: 'rgba(212,164,84,0.08)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.14)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.08)'; }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="4.5" y="1" width="5" height="7" rx="2.5" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M2 7a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                      <line x1="7" y1="12" x2="7" y2="13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                    Record a yarn
                   </button>
-                  <button onClick={() => onAddStory(person.id)}
-                    className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
-                    style={{ color: 'rgba(139,92,246,0.7)', border: '1px solid rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.05)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.1)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.05)'; }}>
-                    + Full story
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowQuickStory(true)}
+                      className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
+                      style={{ color: 'rgba(212,164,84,0.7)', border: '1px solid rgba(212,164,84,0.2)', background: 'rgba(212,164,84,0.05)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.1)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,164,84,0.05)'; }}>
+                      + Quick story
+                    </button>
+                    <button onClick={() => onAddStory(person.id)}
+                      className={`flex-1 text-sm py-2.5 rounded-xl transition-all${tutorialHighlightTabs ? ' animate-tutorial-box-glow' : ''}`}
+                      style={{ color: 'rgba(139,92,246,0.7)', border: '1px solid rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.05)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.1)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.05)'; }}>
+                      + Full story
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1039,6 +1059,15 @@ export function PersonPanel({
         </div>
       </div>
     </div>
+
+    {showAudioRecorder && (
+      <AudioRecorderModal
+        personId={person.id}
+        personName={person.displayName}
+        onClose={() => setShowAudioRecorder(false)}
+      />
+    )}
+    </>
   );
 }
 
